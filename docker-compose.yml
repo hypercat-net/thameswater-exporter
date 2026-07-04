@@ -1,0 +1,52 @@
+services:
+  exporter:
+    build: .
+    container_name: thameswater-exporter
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      REMOTE_WRITE_URL: "http://alloy:9999/api/v1/metrics/write"
+      BACKFILL_DAYS: "7"   # hourly data is only available for the last 7 days
+      POLL_INTERVAL_SECONDS: "3600"
+      STATE_FILE: "/data/state.json"
+    volumes:
+      - exporter-state:/data
+    ports:
+      - "8000:8000"   # self-metrics / health: http://localhost:8000/metrics
+    depends_on:
+      - alloy
+
+  alloy:
+    image: grafana/alloy:latest
+    container_name: alloy
+    restart: unless-stopped
+    command:
+      - run
+      - /etc/alloy/config.alloy
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+    volumes:
+      - ./config/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - alloy-data:/var/lib/alloy/data
+    ports:
+      - "12345:12345"  # Alloy UI
+      - "9999:9999"    # remote_write receiver (prometheus.receive_http)
+    depends_on:
+      - mimir
+
+  mimir:
+    image: grafana/mimir:latest
+    container_name: mimir
+    restart: unless-stopped
+    command:
+      - -config.file=/etc/mimir/mimir.yaml
+    volumes:
+      - ./config/mimir/mimir.yaml:/etc/mimir/mimir.yaml:ro
+      - mimir-data:/data
+    ports:
+      - "9009:9009"    # Mimir HTTP (push at /api/v1/push, query at /prometheus)
+
+volumes:
+  exporter-state:
+  alloy-data:
+  mimir-data:

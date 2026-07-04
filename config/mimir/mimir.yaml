@@ -1,0 +1,61 @@
+# Minimal single-process Mimir for LOCAL TESTING of the Thames Water exporter.
+# NOT a production configuration, and NOT meant to be merged into an existing
+# Mimir. If you already run Mimir, ignore everything here except `limits` below,
+# and even those are optional now (see the note there).
+
+multitenancy_enabled: false
+
+usage_stats:
+  enabled: false
+
+server:
+  http_listen_port: 9009
+  grpc_listen_port: 9095
+  log_level: info
+
+blocks_storage:
+  backend: filesystem
+  filesystem:
+    dir: /data/blocks
+  bucket_store:
+    sync_dir: /data/tsdb-sync
+  tsdb:
+    dir: /data/tsdb
+
+compactor:
+  data_dir: /data/compactor
+  sharding_ring:
+    kvstore:
+      store: memberlist
+
+distributor:
+  ring:
+    instance_addr: 127.0.0.1
+    kvstore:
+      store: memberlist
+
+ingester:
+  ring:
+    instance_addr: 127.0.0.1
+    kvstore:
+      store: memberlist
+    replication_factor: 1
+
+store_gateway:
+  sharding_ring:
+    replication_factor: 1
+
+ruler_storage:
+  backend: filesystem
+  filesystem:
+    dir: /data/ruler
+
+limits:
+  # NOTE: Because hourly data is clamped to the last 7 days and samples are
+  # pushed in timestamp order, the oldest sample is only ~7 days old. That is
+  # within Mimir's default reject_old_samples_max_age (~14 days) and needs no
+  # out-of-order ingestion, so an EXISTING Mimir typically needs NO changes.
+  # The two limits below are belt-and-braces for this local stack and give you
+  # headroom if you ever widen the backfill or replay corrected hours.
+  reject_old_samples: false
+  out_of_order_time_window: 168h   # 7 days
