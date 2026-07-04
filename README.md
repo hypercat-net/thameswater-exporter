@@ -82,6 +82,27 @@ The exporter also serves its own health on `:9100` (`/healthz`, `/metrics`) with
 `thameswater_exporter_up`, `*_last_success_timestamp_seconds`,
 `*_samples_pushed_total`, etc. Those are real-time and safe to scrape normally.
 
+### Why not Prometheus or Alloy?
+
+**Prometheus alone** cannot receive water readings. Prometheus is pull-based: it
+scrapes `/metrics` and stamps every sample with *scrape time*. It has no endpoint
+that accepts incoming `remote_write` pushes, so there is nowhere to send
+backdated hourly data even if you wanted to. You can scrape `:9100` for exporter
+health, but not for `thameswater_meter_reading_litres_total` with correct
+timestamps.
+
+**Grafana Alloy** (`prometheus.receive_http` → `prometheus.remote_write`) is
+also a poor fit. In production, backdated samples were dropped as out-of-order
+in Alloy's remote_write WAL while the exporter reported success — data never
+reached storage. Alloy is still fine for scraping the exporter's `:9100` health
+metrics; this project does not support routing water readings through it.
+
+You need a backend that **accepts Prometheus `remote_write` with historical
+timestamps** and tolerates a 7-day backfill. This exporter targets **Mimir**
+(`/api/v1/push`). Other receivers (e.g. VictoriaMetrics, Cortex, Thanos
+Receive) may work with the right URL and retention settings, but are **out of
+scope** for this documentation.
+
 ## Architecture
 
 ```
@@ -140,7 +161,7 @@ Run only the exporter container and push readings straight to Mimir's distributo
 
    ```bash
    docker compose up --build exporter
-   # or: docker run -d --env-file .env -v thameswater-state:/data -p 9100:9100 hypercat42/thameswater-exporter:latest
+   # or: docker run -d --env-file .env -v thameswater-state:/data -p 9100:9100 hypercat42/thameswater-exporter:1.1.0
    ```
 
 3. **Adjust Mimir limits** for your tenant — see [Mimir limits for historical
@@ -291,7 +312,7 @@ Configure these [repository secrets](https://github.com/hypercat-net/thameswater
 | `DOCKERHUB_TOKEN` | Docker Hub [access token](https://hub.docker.com/settings/security) |
 
 Tags: `latest` and `sha-<commit>` on every `main` push and weekly rebuild;
-`1.0.0`, `1.0`, and `1` when you push a version tag (e.g. `v1.0.0`). Images
+`1.1.0`, `1.1`, and `1` when you push a version tag (e.g. `v1.1.0`). Images
 are published for `linux/amd64` and `linux/arm64`.
 
 Pin production to a semver or `sha-` tag; use `latest` only if you pull
