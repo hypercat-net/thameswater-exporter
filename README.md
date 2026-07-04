@@ -146,7 +146,7 @@ Alloy.
 
    ```bash
    docker compose up --build exporter
-   # or: docker build -t thameswater-exporter . && docker run -d --env-file .env -v thameswater-state:/data -p 9100:9100 thameswater-exporter
+   # or: docker run -d --env-file .env -v thameswater-state:/data -p 9100:9100 barcar/thameswater-exporter:latest
    ```
 
 4. **Mimir** — you probably need **no changes**. Samples are at most ~7 days
@@ -240,3 +240,19 @@ src/thameswater_exporter/
   health.py        # :9100 /metrics and /healthz
 tests/
 ```
+
+## CI / Docker image
+
+GitHub Actions runs `pytest` on every push and pull request. Pushes to `main`
+(and version tags `v*`) also build and publish
+[`barcar/thameswater-exporter`](https://hub.docker.com/r/barcar/thameswater-exporter)
+to Docker Hub.
+
+Configure these [repository secrets](https://github.com/barcar/thameswater-exporter/settings/secrets/actions):
+
+| Secret | Description |
+| --- | --- |
+| `DOCKERHUB_USERNAME` | Your Docker Hub username (`barcar`) |
+| `DOCKERHUB_TOKEN` | Docker Hub [access token](https://hub.docker.com/settings/security) |
+
+Tags: `latest` on `main`, commit SHA, and semver when you push e.g. `v0.1.0`.
