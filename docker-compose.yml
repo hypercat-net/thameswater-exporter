@@ -5,7 +5,8 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      THAMESWATER_EXPORTER_REMOTE_WRITE_URL: "http://alloy:9999/api/v1/metrics/write"
+      THAMESWATER_EXPORTER_REMOTE_WRITE_URL: "http://mimir:9009/api/v1/push"
+      THAMESWATER_EXPORTER_MIMIR_TENANT: "anonymous"
       THAMESWATER_EXPORTER_BACKFILL_DAYS: "7"   # hourly data is only available for the last 7 days
       THAMESWATER_EXPORTER_POLL_INTERVAL_SECONDS: "3600"
       THAMESWATER_EXPORTER_STATE_FILE: "/data/state.json"
@@ -13,24 +14,6 @@ services:
       - exporter-state:/data
     ports:
       - "9100:9100"   # self-metrics / health: http://localhost:9100/metrics
-    depends_on:
-      - alloy
-
-  alloy:
-    image: grafana/alloy:latest
-    container_name: alloy
-    restart: unless-stopped
-    command:
-      - run
-      - /etc/alloy/config.alloy
-      - --server.http.listen-addr=0.0.0.0:12345
-      - --storage.path=/var/lib/alloy/data
-    volumes:
-      - ./config/alloy/config.alloy:/etc/alloy/config.alloy:ro
-      - alloy-data:/var/lib/alloy/data
-    ports:
-      - "12345:12345"  # Alloy UI
-      - "9999:9999"    # remote_write receiver (prometheus.receive_http)
     depends_on:
       - mimir
 
@@ -48,5 +31,4 @@ services:
 
 volumes:
   exporter-state:
-  alloy-data:
   mimir-data:

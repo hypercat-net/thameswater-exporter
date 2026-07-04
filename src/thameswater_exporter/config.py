@@ -8,6 +8,8 @@ from thameswater_exporter.constants import HOURLY_AVAILABILITY_DAYS
 
 log = logging.getLogger(__name__)
 
+DEFAULT_REMOTE_WRITE_URL = "http://mimir:9009/api/v1/push"
+
 
 def _env(name: str, default: str | None = None, required: bool = False) -> str | None:
     value = os.environ.get(name, default)
@@ -42,7 +44,7 @@ class Config:
 
         self.remote_write_url = _env(
             "THAMESWATER_EXPORTER_REMOTE_WRITE_URL",
-            "http://alloy:9999/api/v1/metrics/write",
+            DEFAULT_REMOTE_WRITE_URL,
         )
         self.backfill_days = int(
             _env("THAMESWATER_EXPORTER_BACKFILL_DAYS", str(HOURLY_AVAILABILITY_DAYS))
@@ -67,6 +69,23 @@ class Config:
         self.extra_labels = _parse_labels(
             _env("THAMESWATER_EXPORTER_EXTRA_LABELS", "")
         )
+
+    def validate(self) -> None:
+        url = self.remote_write_url or ""
+        if "/api/v1/metrics/write" in url:
+            log.error(
+                "Grafana Alloy prometheus.receive_http is not supported; push "
+                "directly to Mimir with THAMESWATER_EXPORTER_REMOTE_WRITE_URL="
+                "http://<mimir-host>:9009/api/v1/push"
+            )
+            sys.exit(2)
+        if "/api/v1/push" in url and not self.tenant:
+            log.error(
+                "THAMESWATER_EXPORTER_MIMIR_TENANT is required when pushing to "
+                "Mimir (%s)",
+                url,
+            )
+            sys.exit(2)
 
     def remote_write_headers(self) -> dict[str, str]:
         headers: dict[str, str] = {}

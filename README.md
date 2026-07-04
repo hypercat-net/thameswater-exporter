@@ -4,8 +4,7 @@
 
 Pushes your **hourly** Thames Water smart-meter readings into **Mimir** using
 the Prometheus `remote_write` protocol, so you can graph and alert on household
-water usage in Grafana. Push **directly to Mimir** (recommended) or via **Grafana
-Alloy** `prometheus.receive_http`.
+water usage in Grafana.
 
 [![BuyMeACoffee](https://raw.githubusercontent.com/barcar/buymeacoffee-badges/main/bmc-donate-white.svg)](https://buymeacoffee.com/barcar)
 
@@ -85,25 +84,19 @@ The exporter also serves its own health on `:9100` (`/healthz`, `/metrics`) with
 
 ## Architecture
 
-Two ingestion paths are supported. **Direct Mimir push** is the most reliable
-when samples carry historical `hour_start` timestamps (see [Mimir
-limits](#mimir-limits-for-historical-remote_write) below).
-
 ```
 Thames Water API ──► exporter ──remote_write(historical ts)──► Mimir  /api/v1/push
-                           │                                      (X-Scope-OrgID header)
-                           └── optional ──► Alloy receive_http ──► Mimir
-                                              :9999 (pick a free port)
+                                                                (X-Scope-OrgID header)
 ```
 
-Scrape the exporter's own `:9100` health metrics normally (Alloy/Prometheus →
-Mimir); only the **water readings** use `remote_write` with backdated timestamps.
+Scrape the exporter's own `:9100` health metrics with Prometheus or Alloy if you
+like; only the **water readings** use `remote_write` with backdated timestamps.
 
 ## Quick start (local test stack)
 
-The compose file runs the exporter alongside a **local** Alloy and Mimir for
-testing. The files under `config/` are for this stack only — **do not apply them
-to an existing Alloy or Mimir instance.**
+The compose file runs the exporter alongside a **local** Mimir for testing.
+`config/mimir/mimir.yaml` is for this stack only — **do not apply it wholesale
+to an existing Mimir instance.**
 
 ```bash
 cp .env.example .env      # fill in THAMESWATER_* credentials
@@ -113,20 +106,23 @@ docker compose up --build
 Then:
 
 - Exporter health: <http://localhost:9100/metrics>
-- Alloy UI: <http://localhost:12345>
-- Query Mimir (single-tenant `anonymous`):
+- Query Mimir with a **range** query (tenant `anonymous` in the local stack). An
+  query at "now" is often empty because readings are backdated — see
+  [Querying in Grafana](#querying-in-grafana) below. Adjust `start`/`end` to
+  your backfill window after the exporter's first run:
 
 ```bash
-curl -s 'http://localhost:9009/prometheus/api/v1/query?query=thameswater_meter_reading_litres_total' \
+curl -sG 'http://localhost:9009/prometheus/api/v1/query_range' \
+  --data-urlencode 'query=thameswater_meter_reading_litres_total' \
+  --data-urlencode 'start=2026-06-28T00:00:00Z' \
+  --data-urlencode 'end=2026-07-02T00:00:00Z' \
+  --data-urlencode 'step=3600' \
   -H 'X-Scope-OrgID: anonymous'
 ```
 
 ## Using with your existing Mimir
 
 Run only the exporter container and push readings straight to Mimir's distributor.
-This avoids Alloy's `prometheus.remote_write` WAL dropping backdated samples as
-out-of-order (watch `prometheus_remote_write_wal_out_of_order_samples_total` on
-Alloy if you use the receiver path instead).
 
 1. **Configure the exporter** (`.env` or container env):
 
@@ -149,36 +145,6 @@ Alloy if you use the receiver path instead).
 
 3. **Adjust Mimir limits** for your tenant — see [Mimir limits for historical
    remote_write](#mimir-limits-for-historical-remote_write) below.
-
-### Optional: via Grafana Alloy
-
-If you prefer to route through Alloy, add a receiver (pick a **free port**; `9999`
-is only an example) and forward to your existing `prometheus.remote_write`:
-
-```alloy
-prometheus.receive_http "thameswater" {
-  http {
-    listen_address = "0.0.0.0"
-    listen_port    = 9999   // any free port on your Alloy host
-  }
-  forward_to = [prometheus.remote_write.YOUR_EXISTING.receiver]
-}
-```
-
-`prometheus.receive_http` does **not** forward incoming HTTP headers, so set
-`X-Scope-OrgID` (and any auth) on your existing `prometheus.remote_write`, not
-on the exporter. See [`config/alloy/config.alloy`](config/alloy/config.alloy) for
-a minimal example.
-
-Exporter env for the Alloy path:
-
-```bash
-THAMESWATER_EXPORTER_REMOTE_WRITE_URL=http://<your-alloy-host>:9999/api/v1/metrics/write
-```
-
-If ingest succeeds on Alloy but Mimir stays empty, or Alloy's
-`prometheus_remote_write_wal_out_of_order_samples_total` grows while forwarded
-samples do not, switch to **direct Mimir push** above.
 
 ### Mimir limits for historical remote_write
 
@@ -233,7 +199,7 @@ curl -sG 'http://localhost:9009/prometheus/api/v1/query_range' \
 
 | Event | What happens |
 | --- | --- |
-| **First run** (no state file) | Logs in to Thames Water, fetches the last 7 days of hourly data, pushes every **finalised** hour to Mimir (direct or via Alloy), saves high-water-mark to `THAMESWATER_EXPORTER_STATE_FILE`. |
+| **First run** (no state file) | Logs in to Thames Water, fetches the last 7 days of hourly data, pushes every **finalised** hour to Mimir, saves high-water-mark to `THAMESWATER_EXPORTER_STATE_FILE`. |
 | **Each poll** (default hourly) | Re-authenticates, fetches from the high-water-mark day through today, pushes any newly finalised hours, stops at the first `IsEstimated` hour (not ready yet). |
 | **Restart** | Resumes from `THAMESWATER_EXPORTER_STATE_FILE`; does not re-push hours already sent. |
 | **Down > 7 days** | Hours before the rolling 7-day window are gone from Thames Water; exporter logs an **unrecoverable gap** warning and resumes from the oldest available hour. |
@@ -248,7 +214,7 @@ All via environment variables (see [`.env.example`](.env.example)):
 | Variable | Default | Description |
 | --- | --- | --- |
 | `THAMESWATER_EMAIL`, `THAMESWATER_PASSWORD`, `THAMESWATER_ACCOUNT_NUMBER`, `THAMESWATER_METER` | — | Thames Water login + meter (required) |
-| `THAMESWATER_EXPORTER_REMOTE_WRITE_URL` | `http://alloy:9999/api/v1/metrics/write` | Mimir `/api/v1/push` (recommended) or Alloy `receive_http` URL |
+| `THAMESWATER_EXPORTER_REMOTE_WRITE_URL` | `http://mimir:9009/api/v1/push` | Mimir distributor `/api/v1/push` |
 | `THAMESWATER_EXPORTER_BACKFILL_DAYS` | `7` | History to load on first run (clamped to 7 — the hourly limit) |
 | `THAMESWATER_EXPORTER_CHUNK_DAYS` | `7` | Days of data fetched per request |
 | `THAMESWATER_EXPORTER_CHUNK_DELAY_SECONDS` | `1` | Pause between backfill requests |

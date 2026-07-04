@@ -72,7 +72,7 @@ def _cfg(state_file: str) -> SimpleNamespace:
         backfill_days=7,
         chunk_days=7,
         chunk_delay_seconds=0,
-        remote_write_url="http://alloy:9999/api/v1/metrics/write",
+        remote_write_url="http://mimir:9009/api/v1/push",
         extra_labels={},
     )
 

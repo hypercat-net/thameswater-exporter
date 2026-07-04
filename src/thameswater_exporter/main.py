@@ -22,6 +22,7 @@ def _handle_signal(signum, _frame):
 
 def main() -> None:
     cfg = Config()
+    cfg.validate()
     logging.basicConfig(
         level=getattr(logging, cfg.log_level, logging.INFO),
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
