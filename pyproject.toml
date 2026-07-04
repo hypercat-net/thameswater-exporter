@@ -23,8 +23,8 @@ dev = ["pytest>=7.4", "python-dotenv>=1.0", "mypy>=1.7"]
 thameswater-exporter = "thameswater_exporter.main:main"
 
 [project.urls]
-Homepage = "https://github.com/barcar/thameswater-exporter"
-Repository = "https://github.com/barcar/thameswater-exporter"
+Homepage = "https://github.com/hypercat-net/thameswater-exporter"
+Repository = "https://github.com/hypercat-net/thameswater-exporter"
 
 [tool.setuptools.packages.find]
 where = ["src"]
