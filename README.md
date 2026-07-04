@@ -1,8 +1,12 @@
 # thameswater-exporter
 
+[![CI](https://github.com/hypercat-net/thameswater-exporter/actions/workflows/ci.yml/badge.svg)](https://github.com/hypercat-net/thameswater-exporter/actions/workflows/ci.yml) [![License](https://img.shields.io/github/license/hypercat-net/thameswater-exporter)](https://github.com/hypercat-net/thameswater-exporter/blob/main/LICENSE) [![Docker](https://img.shields.io/docker/v/hypercat-net/thameswater-exporter?label=docker)](https://hub.docker.com/r/hypercat-net/thameswater-exporter)
+
 Pushes your **hourly** Thames Water smart-meter readings into **Mimir** (via
 **Grafana Alloy**) using the Prometheus `remote_write` protocol, so you can graph
 and alert on household water usage in Grafana.
+
+[![BuyMeACoffee](https://raw.githubusercontent.com/barcar/buymeacoffee-badges/main/bmc-donate-white.svg)](https://buymeacoffee.com/barcar)
 
 It uses [**thameswaterapi**](https://github.com/jelmer/thameswaterapi) (PyPI:
 `thameswaterapi`) for Thames Water authentication and API access — a maintained
@@ -246,7 +250,9 @@ tests/
 GitHub Actions runs `pytest` on every push and pull request. Pushes to `main`
 (and version tags `v*`) also build and publish
 [`hypercat-net/thameswater-exporter`](https://hub.docker.com/r/hypercat-net/thameswater-exporter)
-to Docker Hub.
+to Docker Hub. A **weekly scheduled rebuild** (Sundays 04:17 UTC) refreshes
+`latest` against the current `python:3.12-slim` base even when application code
+has not changed — useful for picking up base-image CVE fixes.
 
 Configure these [repository secrets](https://github.com/hypercat-net/thameswater-exporter/settings/secrets/actions):
 
@@ -255,6 +261,9 @@ Configure these [repository secrets](https://github.com/hypercat-net/thameswater
 | `DOCKERHUB_USERNAME` | Your Docker Hub username or org (`hypercat-net`) |
 | `DOCKERHUB_TOKEN` | Docker Hub [access token](https://hub.docker.com/settings/security) |
 
-Tags: `latest` and `sha-<commit>` on every `main` push; `1.0.0`, `1.0`, and `1`
-when you push a version tag (e.g. `v1.0.0`). Images are published for
-`linux/amd64` and `linux/arm64`.
+Tags: `latest` and `sha-<commit>` on every `main` push and weekly rebuild;
+`1.0.0`, `1.0`, and `1` when you push a version tag (e.g. `v1.0.0`). Images
+are published for `linux/amd64` and `linux/arm64`.
+
+Pin production to a semver or `sha-` tag; use `latest` only if you pull
+regularly (or rely on the weekly rebuild) to stay on patched base layers.
