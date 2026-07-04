@@ -8,7 +8,8 @@ from prometheus_remote_writer import RemoteWriter
 
 from thameswater_exporter.collector import collect_once
 from thameswater_exporter.config import Config
-from thameswater_exporter.health import STATS, start_health_server
+from thameswater_exporter.health import STATS, start_health_server, update_data_metrics
+from thameswater_exporter.state import load_meter_state
 
 log = logging.getLogger(__name__)
 
@@ -32,6 +33,9 @@ def main() -> None:
     signal.signal(signal.SIGINT, _handle_signal)
 
     start_health_server(cfg.health_port)
+
+    state = load_meter_state(cfg.state_file, cfg.meter)
+    update_data_metrics(state.last_pushed_hour, state.last_new_data_push_unixtime)
 
     writer = RemoteWriter(
         url=cfg.remote_write_url,

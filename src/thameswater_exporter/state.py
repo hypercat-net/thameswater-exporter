@@ -9,8 +9,13 @@ log = logging.getLogger(__name__)
 
 
 class MeterState:
-    def __init__(self, last_pushed_hour: datetime.datetime | None) -> None:
+    def __init__(
+        self,
+        last_pushed_hour: datetime.datetime | None,
+        last_new_data_push_unixtime: float | None = None,
+    ) -> None:
         self.last_pushed_hour = last_pushed_hour
+        self.last_new_data_push_unixtime = last_new_data_push_unixtime
 
 
 def load_meter_state(state_file: str, meter: str) -> MeterState:
@@ -23,9 +28,12 @@ def load_meter_state(state_file: str, meter: str) -> MeterState:
         log.warning("Could not read state file %s: %s", state_file, exc)
         return MeterState(None)
 
-    iso = state.get("meters", {}).get(str(meter), {}).get("last_pushed_hour")
+    meter_state = state.get("meters", {}).get(str(meter), {})
+    iso = meter_state.get("last_pushed_hour")
+    push_unixtime = meter_state.get("last_new_data_push_unixtime")
     return MeterState(
         datetime.datetime.fromisoformat(iso) if iso else None,
+        float(push_unixtime) if push_unixtime is not None else None,
     )
 
 
@@ -33,6 +41,8 @@ def save_meter_state(
     state_file: str,
     meter: str,
     hour_start: datetime.datetime,
+    *,
+    new_data_push_unixtime: float | None = None,
 ) -> None:
     state: dict = {"meters": {}}
     try:
@@ -43,9 +53,12 @@ def save_meter_state(
     except ValueError as exc:
         log.warning("State file %s is invalid JSON, resetting state: %s", state_file, exc)
 
-    state.setdefault("meters", {})[str(meter)] = {
+    entry: dict = {
         "last_pushed_hour": hour_start.astimezone(datetime.timezone.utc).isoformat(),
     }
+    if new_data_push_unixtime is not None:
+        entry["last_new_data_push_unixtime"] = new_data_push_unixtime
+    state.setdefault("meters", {})[str(meter)] = entry
 
     parent = os.path.dirname(state_file)
     if parent:

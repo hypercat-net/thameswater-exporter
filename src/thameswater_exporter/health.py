@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 import logging
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -11,6 +12,8 @@ class Stats:
     def __init__(self) -> None:
         self.last_success_unixtime = 0.0
         self.last_run_unixtime = 0.0
+        self.last_pushed_hour_unixtime = 0.0
+        self.last_new_data_push_unixtime = 0.0
         self.samples_pushed_total = 0
         self.push_errors_total = 0
         self.up = 0
@@ -19,17 +22,35 @@ class Stats:
 STATS = Stats()
 
 
+def update_data_metrics(
+    last_pushed_hour: datetime.datetime | None,
+    last_new_data_push_unixtime: float | None = None,
+) -> None:
+    if last_pushed_hour is not None:
+        STATS.last_pushed_hour_unixtime = last_pushed_hour.astimezone(
+            datetime.timezone.utc
+        ).timestamp()
+    if last_new_data_push_unixtime is not None:
+        STATS.last_new_data_push_unixtime = last_new_data_push_unixtime
+
+
 def render_self_metrics() -> str:
     return (
         "# HELP thameswater_exporter_up Whether the last collection cycle succeeded.\n"
         "# TYPE thameswater_exporter_up gauge\n"
         f"thameswater_exporter_up {STATS.up}\n"
-        "# HELP thameswater_exporter_last_success_timestamp_seconds Unix time of last successful push.\n"
+        "# HELP thameswater_exporter_last_success_timestamp_seconds Unix time of the last collection cycle that completed without error.\n"
         "# TYPE thameswater_exporter_last_success_timestamp_seconds gauge\n"
         f"thameswater_exporter_last_success_timestamp_seconds {STATS.last_success_unixtime}\n"
         "# HELP thameswater_exporter_last_run_timestamp_seconds Unix time of last collection attempt.\n"
         "# TYPE thameswater_exporter_last_run_timestamp_seconds gauge\n"
         f"thameswater_exporter_last_run_timestamp_seconds {STATS.last_run_unixtime}\n"
+        "# HELP thameswater_exporter_last_pushed_hour_timestamp_seconds Unix time of the newest finalised hour pushed to storage (high-water-mark).\n"
+        "# TYPE thameswater_exporter_last_pushed_hour_timestamp_seconds gauge\n"
+        f"thameswater_exporter_last_pushed_hour_timestamp_seconds {STATS.last_pushed_hour_unixtime}\n"
+        "# HELP thameswater_exporter_last_new_data_push_timestamp_seconds Unix time when the exporter last pushed one or more new finalised hours.\n"
+        "# TYPE thameswater_exporter_last_new_data_push_timestamp_seconds gauge\n"
+        f"thameswater_exporter_last_new_data_push_timestamp_seconds {STATS.last_new_data_push_unixtime}\n"
         "# HELP thameswater_exporter_samples_pushed_total Total samples pushed via remote_write.\n"
         "# TYPE thameswater_exporter_samples_pushed_total counter\n"
         f"thameswater_exporter_samples_pushed_total {STATS.samples_pushed_total}\n"

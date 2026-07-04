@@ -80,7 +80,8 @@ increase(thameswater_meter_reading_litres_total[1d])
 
 The exporter also serves its own health on `:9100` (`/healthz`, `/metrics`) with
 `thameswater_exporter_up`, `*_last_success_timestamp_seconds`,
-`*_samples_pushed_total`, etc. Those are real-time and safe to scrape normally.
+`*_last_pushed_hour_timestamp_seconds`, `*_last_new_data_push_timestamp_seconds`,
+etc. Those are real-time and safe to scrape normally.
 
 ### Why not Prometheus or Alloy?
 
@@ -226,7 +227,16 @@ curl -sG 'http://localhost:9009/prometheus/api/v1/query_range' \
 | **Down > 7 days** | Hours before the rolling 7-day window are gone from Thames Water; exporter logs an **unrecoverable gap** warning and resumes from the oldest available hour. |
 
 Check `thameswater_exporter_up` and `thameswater_exporter_last_success_timestamp_seconds`
-on `:9100/metrics` to confirm it is keeping up.
+on `:9100/metrics` to confirm the exporter is running. For data freshness:
+
+| Metric | Meaning |
+| --- | --- |
+| `last_success_timestamp_seconds` | Last collection cycle completed without error (even if nothing new to push) |
+| `last_new_data_push_timestamp_seconds` | Last time one or more **new** finalised hours were pushed |
+| `last_pushed_hour_timestamp_seconds` | `hour_start` of the newest hour in storage (high-water-mark) |
+
+Example alerts: no successful cycles for 2h; no new data push for 48h; high-water-mark
+more than 72h behind now.
 
 ## Configuration
 

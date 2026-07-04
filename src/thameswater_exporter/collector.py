@@ -10,7 +10,7 @@ from thameswaterapi import ThamesWater
 
 from thameswater_exporter.config import Config
 from thameswater_exporter.constants import HOURLY_AVAILABILITY_DAYS, LONDON
-from thameswater_exporter.health import STATS
+from thameswater_exporter.health import STATS, update_data_metrics
 from thameswater_exporter.readings import Measurement, lines_to_measurements
 from thameswater_exporter.remote_write import build_write_payload
 from thameswater_exporter.state import load_meter_state, save_meter_state
@@ -75,6 +75,7 @@ def collect_once(
 
     state = load_meter_state(cfg.state_file, cfg.meter)
     hwm = state.last_pushed_hour
+    update_data_metrics(hwm, state.last_new_data_push_unixtime)
     now_london = datetime.datetime.now(LONDON)
 
     start_date, end_date, gap = compute_fetch_window(now_london, hwm, cfg.backfill_days)
@@ -169,7 +170,14 @@ def collect_once(
         writer.send(payload)
 
         hwm = to_push[-1].hour_start
-        save_meter_state(cfg.state_file, cfg.meter, hwm)
+        push_unixtime = time.time()
+        save_meter_state(
+            cfg.state_file,
+            cfg.meter,
+            hwm,
+            new_data_push_unixtime=push_unixtime,
+        )
+        update_data_metrics(hwm, push_unixtime)
         total_pushed += len(to_push)
         STATS.samples_pushed_total += len(to_push) * len(payload)
 
