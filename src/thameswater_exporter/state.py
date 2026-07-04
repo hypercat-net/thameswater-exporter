@@ -38,8 +38,10 @@ def save_meter_state(
     try:
         with open(state_file, "r", encoding="utf-8") as fh:
             state = json.load(fh)
-    except (FileNotFoundError, ValueError):
-        pass
+    except FileNotFoundError:
+        log.debug("State file %s does not exist yet; creating a new one", state_file)
+    except ValueError as exc:
+        log.warning("State file %s is invalid JSON, resetting state: %s", state_file, exc)
 
     state.setdefault("meters", {})[str(meter)] = {
         "last_pushed_hour": hour_start.astimezone(datetime.timezone.utc).isoformat(),
