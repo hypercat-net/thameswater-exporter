@@ -255,4 +255,6 @@ Configure these [repository secrets](https://github.com/hypercat-net/thameswater
 | `DOCKERHUB_USERNAME` | Your Docker Hub username or org (`hypercat-net`) |
 | `DOCKERHUB_TOKEN` | Docker Hub [access token](https://hub.docker.com/settings/security) |
 
-Tags: `latest` on `main`, commit SHA, and semver when you push e.g. `v0.1.0`.
+Tags: `latest` and `sha-<commit>` on every `main` push; `1.0.0`, `1.0`, and `1`
+when you push a version tag (e.g. `v1.0.0`). Images are published for
+`linux/amd64` and `linux/arm64`.
