@@ -6,16 +6,13 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /app
 
-COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt
+COPY pyproject.toml README.md ./
+COPY src ./src
+RUN pip install --no-cache-dir .
 
-COPY exporter.py tw_readings.py ./
-
-# Persist the high-water-mark across restarts so we never re-push or re-order.
 RUN mkdir -p /data
 VOLUME ["/data"]
 
-# Self-metrics / health endpoint.
-EXPOSE 8000
+EXPOSE 9100
 
-ENTRYPOINT ["python", "exporter.py"]
+ENTRYPOINT ["thameswater-exporter"]

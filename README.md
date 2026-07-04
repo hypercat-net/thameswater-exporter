@@ -7,8 +7,9 @@ and alert on household water usage in Grafana.
 It uses [**thameswaterapi**](https://github.com/jelmer/thameswaterapi) (PyPI:
 `thameswaterapi`) for Thames Water authentication and API access — a maintained
 fork of [AyrtonB/Thames-Water](https://github.com/AyrtonB/Thames-Water/). Exporter-specific
-logic (finalised-hour filtering, `remote_write` push, state) lives in `exporter.py`;
-reading metadata (`is_estimated`, `serial`) is added in `tw_readings.py`.
+logic (finalised-hour filtering, `remote_write` push, state) lives in the
+`thameswater_exporter` package; reading metadata (`is_estimated`, `serial`) is
+added in `thameswater_exporter.readings`.
 
 ## Why this isn't a normal `/metrics` scrape
 
@@ -73,7 +74,7 @@ increase(thameswater_meter_reading_litres_total[1h])
 increase(thameswater_meter_reading_litres_total[1d])
 ```
 
-The exporter also serves its own health on `:8000` (`/healthz`, `/metrics`) with
+The exporter also serves its own health on `:9100` (`/healthz`, `/metrics`) with
 `thameswater_exporter_up`, `*_last_success_timestamp_seconds`,
 `*_samples_pushed_total`, etc. Those are real-time and safe to scrape normally.
 
@@ -97,7 +98,7 @@ docker compose up --build
 
 Then:
 
-- Exporter health: <http://localhost:8000/metrics>
+- Exporter health: <http://localhost:9100/metrics>
 - Alloy UI: <http://localhost:12345>
 - Query Mimir (single-tenant `anonymous`):
 
@@ -145,7 +146,7 @@ Alloy.
 
    ```bash
    docker compose up --build exporter
-   # or: docker build -t thameswater-exporter . && docker run -d --env-file .env -v thameswater-state:/data -p 8000:8000 thameswater-exporter
+   # or: docker build -t thameswater-exporter . && docker run -d --env-file .env -v thameswater-state:/data -p 9100:9100 thameswater-exporter
    ```
 
 4. **Mimir** — you probably need **no changes**. Samples are at most ~7 days
@@ -172,7 +173,7 @@ Alloy.
 | **Down > 7 days** | Hours before the rolling 7-day window are gone from Thames Water; exporter logs an **unrecoverable gap** warning and resumes from the oldest available hour. |
 
 Check `thameswater_exporter_up` and `thameswater_exporter_last_success_timestamp_seconds`
-on `:8000/metrics` to confirm it is keeping up.
+on `:9100/metrics` to confirm it is keeping up.
 
 ## Configuration
 
@@ -187,7 +188,7 @@ All via environment variables (see [`.env.example`](.env.example)):
 | `CHUNK_DELAY_SECONDS` | `1` | Pause between backfill requests |
 | `POLL_INTERVAL_SECONDS` | `3600` | How often to check for new finalised hours |
 | `STATE_FILE` | `/data/state.json` | High-water-mark (last pushed hour) |
-| `HEALTH_PORT` | `8000` | Self `/healthz` + `/metrics` |
+| `HEALTH_PORT` | `9100` | Self `/healthz` + `/metrics` |
 | `LOG_LEVEL` | `INFO` | Logging verbosity |
 | `EXTRA_LABELS` | — | e.g. `location=home,env=prod` |
 | `REMOTE_WRITE_USERNAME` / `_PASSWORD` / `_BEARER_TOKEN`, `MIMIR_TENANT` | — | Only if pushing **directly** to Mimir, bypassing Alloy |
@@ -200,7 +201,7 @@ exporter:
 ```python
 import datetime
 from thameswaterapi import ThamesWater
-from tw_readings import lines_to_measurements
+from thameswater_exporter.readings import lines_to_measurements
 
 tw = ThamesWater(email="me@example.com", password="…", account_number=123456789)
 
@@ -221,8 +222,21 @@ daily/monthly feeds, listing meters, tariff data, and the CLI.
 ## Development
 
 ```bash
-pip install -r requirements.txt
-pytest test_exporter.py        # offline unit tests
-python scripts/test_api.py     # live API smoke test (needs .env)
-# test_data_retrieval.py also hits the live API
+pip install -e ".[dev]"
+pytest                             # offline tests in tests/
+python scripts/test_api.py         # live API smoke test (needs .env)
+```
+
+Package layout:
+
+```
+src/thameswater_exporter/
+  main.py          # entrypoint loop
+  config.py        # environment configuration
+  collector.py     # fetch, filter, push
+  readings.py      # Measurement adapter over thameswaterapi
+  remote_write.py  # Prometheus payload builder
+  state.py         # high-water-mark persistence
+  health.py        # :9100 /metrics and /healthz
+tests/
 ```

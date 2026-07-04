@@ -1,2 +1,14 @@
 .env
 poetry.lock
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/

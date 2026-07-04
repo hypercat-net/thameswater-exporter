@@ -1,23 +1,18 @@
 #!/usr/bin/env python3
-"""Live Thames Water API smoke test. Requires .env with EMAIL, PASSWORD, ACCOUNT_NUMBER, METER.
-
-Uses thameswaterapi for authentication and data fetch. Does not print credentials.
-"""
+"""Live Thames Water API smoke test. Requires .env with EMAIL, PASSWORD, ACCOUNT_NUMBER, METER."""
 
 from __future__ import annotations
 
+import datetime
 import os
 import sys
-import datetime
-from pathlib import Path
 
 from dotenv import load_dotenv
 from thameswaterapi import ThamesWater
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from tw_readings import lines_to_measurements
+from thameswater_exporter.readings import lines_to_measurements
 
-load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+load_dotenv()
 
 REQUIRED = ("EMAIL", "PASSWORD", "ACCOUNT_NUMBER", "METER")
 
@@ -51,8 +46,10 @@ def main() -> int:
         print(f"FAILED: {exc}", file=sys.stderr)
         return 2
 
-    print(f"IsError={usage.IsError}  IsDataAvailable={usage.IsDataAvailable}  "
-          f"IsConsumptionAvailable={usage.IsConsumptionAvailable}")
+    print(
+        f"IsError={usage.IsError}  IsDataAvailable={usage.IsDataAvailable}  "
+        f"IsConsumptionAvailable={usage.IsConsumptionAvailable}"
+    )
     print(f"Lines returned: {len(usage.Lines)}")
 
     if not usage.Lines:
@@ -69,13 +66,17 @@ def main() -> int:
 
     print("\nFirst 3 lines (raw API):")
     for line in usage.Lines[:3]:
-        print(f"  Label={line.Label!r}  Usage={line.Usage}  Read={line.Read}  "
-              f"IsEstimated={line.IsEstimated}")
+        print(
+            f"  Label={line.Label!r}  Usage={line.Usage}  Read={line.Read}  "
+            f"IsEstimated={line.IsEstimated}"
+        )
 
     print("\nLast 3 lines (raw API):")
     for line in usage.Lines[-3:]:
-        print(f"  Label={line.Label!r}  Usage={line.Usage}  Read={line.Read}  "
-              f"IsEstimated={line.IsEstimated}")
+        print(
+            f"  Label={line.Label!r}  Usage={line.Usage}  Read={line.Read}  "
+            f"IsEstimated={line.IsEstimated}"
+        )
 
     if estimated:
         print(f"\nFirst estimated hour: {estimated[0].hour_start.isoformat()}")

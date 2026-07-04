@@ -12,7 +12,7 @@ services:
     volumes:
       - exporter-state:/data
     ports:
-      - "8000:8000"   # self-metrics / health: http://localhost:8000/metrics
+      - "9100:9100"   # self-metrics / health: http://localhost:9100/metrics
     depends_on:
       - alloy
 

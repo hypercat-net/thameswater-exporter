@@ -2,14 +2,14 @@ import datetime
 import zoneinfo
 
 from thameswaterapi import Line
-from tw_readings import Measurement, lines_to_measurements
-from exporter import (
-    select_new_final_measurements,
-    build_write_payload,
-    iter_date_chunks,
+from thameswater_exporter.collector import (
     compute_fetch_window,
-    HOURLY_AVAILABILITY_DAYS,
+    iter_date_chunks,
+    select_new_final_measurements,
 )
+from thameswater_exporter.constants import HOURLY_AVAILABILITY_DAYS
+from thameswater_exporter.readings import Measurement, lines_to_measurements
+from thameswater_exporter.remote_write import build_write_payload
 
 LONDON = zoneinfo.ZoneInfo("Europe/London")
 
@@ -28,8 +28,8 @@ def test_selection_stops_at_first_estimated_hour():
     measurements = [
         _m(0, 10, 1000),
         _m(1, 20, 1020),
-        _m(2, 30, 1050, estimated=True),  # not final yet
-        _m(3, 40, 1090),                  # final, but after a gap -> must not jump
+        _m(2, 30, 1050, estimated=True),
+        _m(3, 40, 1090),
     ]
     selected = select_new_final_measurements(measurements, high_water_mark=None)
     assert [m.hour_start.hour for m in selected] == [0, 1]
@@ -45,7 +45,9 @@ def test_selection_skips_already_pushed_hours():
 def test_write_payload_uses_meter_read_from_api():
     measurements = [_m(0, 10, 1000), _m(1, 20, 1020), _m(2, 30, 1050)]
     payload = build_write_payload(measurements, {"meter": "M1", "account": "x"})
-    reading = next(s for s in payload if s["metric"]["__name__"] == "thameswater_meter_reading_litres_total")
+    reading = next(
+        s for s in payload if s["metric"]["__name__"] == "thameswater_meter_reading_litres_total"
+    )
     assert reading["values"] == [1000.0, 1020.0, 1050.0]
     assert all(b >= a for a, b in zip(reading["values"], reading["values"][1:]))
 
