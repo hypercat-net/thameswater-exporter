@@ -2,6 +2,11 @@
 // For production, add a prometheus.receive_http block like this to your existing
 // config and forward_to your existing prometheus.remote_write receiver.
 //
+// CAUTION: on some Alloy setups, prometheus.remote_write may drop backdated
+// samples as out-of-order in its WAL (prometheus_remote_write_wal_out_of_order_
+// samples_total). If Mimir stays empty despite successful exporter pushes,
+// push directly to Mimir instead (see README).
+//
 // Receives Prometheus remote_write requests from the Thames Water exporter and
 // forwards them to Mimir.
 //
