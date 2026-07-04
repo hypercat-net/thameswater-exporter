@@ -2,7 +2,7 @@ FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    STATE_FILE=/data/state.json
+    THAMESWATER_EXPORTER_STATE_FILE=/data/state.json
 
 WORKDIR /app
 

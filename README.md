@@ -44,12 +44,12 @@ Thames Water exposes different resolutions for different time ranges:
 This exporter targets the **hourly** feed, so it can only ever see the **last 7
 days** of hourly readings. Consequences:
 
-- `BACKFILL_DAYS` is **clamped to 7** — older hourly data does not exist.
+- `THAMESWATER_EXPORTER_BACKFILL_DAYS` is **clamped to 7** — older hourly data does not exist.
 - **Run the exporter at least every few days.** If it is down for longer than 7
   days, the missed hours age out of Thames Water permanently; the exporter logs
   an "unrecoverable gap" warning and resumes from the start of the 7-day window.
-  (The default `POLL_INTERVAL_SECONDS=3600` keeps you well inside this.)
-- The 7-day window fits in a single request, so chunking (`CHUNK_DAYS`) is only
+  (The default `THAMESWATER_EXPORTER_POLL_INTERVAL_SECONDS=3600` keeps you well inside this.)
+- The 7-day window fits in a single request, so chunking (`THAMESWATER_EXPORTER_CHUNK_DAYS`) is only
   relevant if you later fetch the coarser/longer feeds. Any window that reaches
   before the 7-day horizon and comes back clipped is skipped with a warning
   rather than written misaligned.
@@ -66,7 +66,7 @@ integration or extra state.
 | `thameswater_meter_reading_litres_total` | counter | `Read` | Cumulative meter reading (litres). Use `increase()` / `rate()`. |
 | `thameswater_hourly_usage_litres` | gauge | `Usage` | Litres used during that hour. |
 
-Labels: `meter`, `account`, `serial` (+ anything in `EXTRA_LABELS`).
+Labels: `meter`, `account`, `serial` (+ anything in `THAMESWATER_EXPORTER_EXTRA_LABELS`).
 
 Example queries:
 
@@ -96,7 +96,7 @@ testing. The files under `config/` are for this stack only — **do not apply th
 to an existing Alloy or Mimir instance.**
 
 ```bash
-cp .env.example .env      # fill in EMAIL / PASSWORD / ACCOUNT_NUMBER / METER
+cp .env.example .env      # fill in THAMESWATER_* credentials
 docker compose up --build
 ```
 
@@ -138,11 +138,11 @@ Alloy.
 2. **Configure the exporter** (`.env` or container env):
 
    ```bash
-   EMAIL=...
-   PASSWORD=...
-   ACCOUNT_NUMBER=...
-   METER=...
-   REMOTE_WRITE_URL=http://<your-alloy-host>:9999/api/v1/metrics/write
+   THAMESWATER_EMAIL=...
+   THAMESWATER_PASSWORD=...
+   THAMESWATER_ACCOUNT_NUMBER=...
+   THAMESWATER_METER=...
+   THAMESWATER_EXPORTER_REMOTE_WRITE_URL=http://<your-alloy-host>:9999/api/v1/metrics/write
    ```
 
 3. **Run the exporter** (persist `/data` so the high-water-mark survives
@@ -171,9 +171,9 @@ Alloy.
 
 | Event | What happens |
 | --- | --- |
-| **First run** (no state file) | Logs in to Thames Water, fetches the last 7 days of hourly data, pushes every **finalised** hour to Alloy, saves high-water-mark to `STATE_FILE`. |
+| **First run** (no state file) | Logs in to Thames Water, fetches the last 7 days of hourly data, pushes every **finalised** hour to Alloy, saves high-water-mark to `THAMESWATER_EXPORTER_STATE_FILE`. |
 | **Each poll** (default hourly) | Re-authenticates, fetches from the high-water-mark day through today, pushes any newly finalised hours, stops at the first `IsEstimated` hour (not ready yet). |
-| **Restart** | Resumes from `STATE_FILE`; does not re-push hours already sent. |
+| **Restart** | Resumes from `THAMESWATER_EXPORTER_STATE_FILE`; does not re-push hours already sent. |
 | **Down > 7 days** | Hours before the rolling 7-day window are gone from Thames Water; exporter logs an **unrecoverable gap** warning and resumes from the oldest available hour. |
 
 Check `thameswater_exporter_up` and `thameswater_exporter_last_success_timestamp_seconds`
@@ -185,17 +185,17 @@ All via environment variables (see [`.env.example`](.env.example)):
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `EMAIL`, `PASSWORD`, `ACCOUNT_NUMBER`, `METER` | — | Thames Water login + meter (required) |
-| `REMOTE_WRITE_URL` | `http://alloy:9999/api/v1/metrics/write` | Alloy receiver |
-| `BACKFILL_DAYS` | `7` | History to load on first run (clamped to 7 — the hourly limit) |
-| `CHUNK_DAYS` | `7` | Days of data fetched per request |
-| `CHUNK_DELAY_SECONDS` | `1` | Pause between backfill requests |
-| `POLL_INTERVAL_SECONDS` | `3600` | How often to check for new finalised hours |
-| `STATE_FILE` | `/data/state.json` | High-water-mark (last pushed hour) |
-| `HEALTH_PORT` | `9100` | Self `/healthz` + `/metrics` |
-| `LOG_LEVEL` | `INFO` | Logging verbosity |
-| `EXTRA_LABELS` | — | e.g. `location=home,env=prod` |
-| `REMOTE_WRITE_USERNAME` / `_PASSWORD` / `_BEARER_TOKEN`, `MIMIR_TENANT` | — | Only if pushing **directly** to Mimir, bypassing Alloy |
+| `THAMESWATER_EMAIL`, `THAMESWATER_PASSWORD`, `THAMESWATER_ACCOUNT_NUMBER`, `THAMESWATER_METER` | — | Thames Water login + meter (required) |
+| `THAMESWATER_EXPORTER_REMOTE_WRITE_URL` | `http://alloy:9999/api/v1/metrics/write` | Alloy receiver |
+| `THAMESWATER_EXPORTER_BACKFILL_DAYS` | `7` | History to load on first run (clamped to 7 — the hourly limit) |
+| `THAMESWATER_EXPORTER_CHUNK_DAYS` | `7` | Days of data fetched per request |
+| `THAMESWATER_EXPORTER_CHUNK_DELAY_SECONDS` | `1` | Pause between backfill requests |
+| `THAMESWATER_EXPORTER_POLL_INTERVAL_SECONDS` | `3600` | How often to check for new finalised hours |
+| `THAMESWATER_EXPORTER_STATE_FILE` | `/data/state.json` | High-water-mark (last pushed hour) |
+| `THAMESWATER_EXPORTER_HEALTH_PORT` | `9100` | Self `/healthz` + `/metrics` |
+| `THAMESWATER_EXPORTER_LOG_LEVEL` | `INFO` | Logging verbosity |
+| `THAMESWATER_EXPORTER_EXTRA_LABELS` | — | e.g. `location=home,env=prod` |
+| `THAMESWATER_EXPORTER_REMOTE_WRITE_USERNAME` / `_PASSWORD` / `_BEARER_TOKEN`, `THAMESWATER_EXPORTER_MIMIR_TENANT` | — | Only if pushing **directly** to Mimir, bypassing Alloy |
 
 ## Using thameswaterapi directly
 

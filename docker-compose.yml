@@ -5,10 +5,10 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
-      REMOTE_WRITE_URL: "http://alloy:9999/api/v1/metrics/write"
-      BACKFILL_DAYS: "7"   # hourly data is only available for the last 7 days
-      POLL_INTERVAL_SECONDS: "3600"
-      STATE_FILE: "/data/state.json"
+      THAMESWATER_EXPORTER_REMOTE_WRITE_URL: "http://alloy:9999/api/v1/metrics/write"
+      THAMESWATER_EXPORTER_BACKFILL_DAYS: "7"   # hourly data is only available for the last 7 days
+      THAMESWATER_EXPORTER_POLL_INTERVAL_SECONDS: "3600"
+      THAMESWATER_EXPORTER_STATE_FILE: "/data/state.json"
     volumes:
       - exporter-state:/data
     ports:

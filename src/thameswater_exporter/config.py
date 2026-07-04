@@ -24,7 +24,9 @@ def _parse_labels(raw: str) -> dict[str, str]:
         if not pair:
             continue
         if "=" not in pair:
-            log.warning("Ignoring malformed EXTRA_LABELS entry: %r", pair)
+            log.warning(
+                "Ignoring malformed THAMESWATER_EXPORTER_EXTRA_LABELS entry: %r", pair
+            )
             continue
         key, value = pair.split("=", 1)
         labels[key.strip()] = value.strip()
@@ -33,27 +35,38 @@ def _parse_labels(raw: str) -> dict[str, str]:
 
 class Config:
     def __init__(self) -> None:
-        self.email = _env("EMAIL", required=True)
-        self.password = _env("PASSWORD", required=True)
-        self.account_number = _env("ACCOUNT_NUMBER", required=True)
-        self.meter = _env("METER", required=True)
+        self.email = _env("THAMESWATER_EMAIL", required=True)
+        self.password = _env("THAMESWATER_PASSWORD", required=True)
+        self.account_number = _env("THAMESWATER_ACCOUNT_NUMBER", required=True)
+        self.meter = _env("THAMESWATER_METER", required=True)
 
         self.remote_write_url = _env(
-            "REMOTE_WRITE_URL", "http://alloy:9999/api/v1/metrics/write"
+            "THAMESWATER_EXPORTER_REMOTE_WRITE_URL",
+            "http://alloy:9999/api/v1/metrics/write",
         )
-        self.backfill_days = int(_env("BACKFILL_DAYS", str(HOURLY_AVAILABILITY_DAYS)))
-        self.chunk_days = int(_env("CHUNK_DAYS", "7"))
-        self.chunk_delay_seconds = float(_env("CHUNK_DELAY_SECONDS", "1"))
-        self.poll_interval = int(_env("POLL_INTERVAL_SECONDS", "3600"))
-        self.state_file = _env("STATE_FILE", "/data/state.json")
-        self.health_port = int(_env("HEALTH_PORT", "9100"))
-        self.log_level = _env("LOG_LEVEL", "INFO").upper()
+        self.backfill_days = int(
+            _env("THAMESWATER_EXPORTER_BACKFILL_DAYS", str(HOURLY_AVAILABILITY_DAYS))
+        )
+        self.chunk_days = int(_env("THAMESWATER_EXPORTER_CHUNK_DAYS", "7"))
+        self.chunk_delay_seconds = float(
+            _env("THAMESWATER_EXPORTER_CHUNK_DELAY_SECONDS", "1")
+        )
+        self.poll_interval = int(
+            _env("THAMESWATER_EXPORTER_POLL_INTERVAL_SECONDS", "3600")
+        )
+        self.state_file = _env(
+            "THAMESWATER_EXPORTER_STATE_FILE", "/data/state.json"
+        )
+        self.health_port = int(_env("THAMESWATER_EXPORTER_HEALTH_PORT", "9100"))
+        self.log_level = _env("THAMESWATER_EXPORTER_LOG_LEVEL", "INFO").upper()
 
-        self.rw_username = _env("REMOTE_WRITE_USERNAME")
-        self.rw_password = _env("REMOTE_WRITE_PASSWORD")
-        self.rw_bearer = _env("REMOTE_WRITE_BEARER_TOKEN")
-        self.tenant = _env("MIMIR_TENANT")
-        self.extra_labels = _parse_labels(_env("EXTRA_LABELS", ""))
+        self.rw_username = _env("THAMESWATER_EXPORTER_REMOTE_WRITE_USERNAME")
+        self.rw_password = _env("THAMESWATER_EXPORTER_REMOTE_WRITE_PASSWORD")
+        self.rw_bearer = _env("THAMESWATER_EXPORTER_REMOTE_WRITE_BEARER_TOKEN")
+        self.tenant = _env("THAMESWATER_EXPORTER_MIMIR_TENANT")
+        self.extra_labels = _parse_labels(
+            _env("THAMESWATER_EXPORTER_EXTRA_LABELS", "")
+        )
 
     def remote_write_headers(self) -> dict[str, str]:
         headers: dict[str, str] = {}

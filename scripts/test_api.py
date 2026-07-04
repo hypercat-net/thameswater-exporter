@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Live Thames Water API smoke test. Requires .env with EMAIL, PASSWORD, ACCOUNT_NUMBER, METER."""
+"""Live Thames Water API smoke test. Requires Thames Water credentials in .env."""
 
 from __future__ import annotations
 
@@ -14,7 +14,12 @@ from thameswater_exporter.readings import lines_to_measurements
 
 load_dotenv()
 
-REQUIRED = ("EMAIL", "PASSWORD", "ACCOUNT_NUMBER", "METER")
+REQUIRED = (
+    "THAMESWATER_EMAIL",
+    "THAMESWATER_PASSWORD",
+    "THAMESWATER_ACCOUNT_NUMBER",
+    "THAMESWATER_METER",
+)
 
 
 def main() -> int:
@@ -24,10 +29,10 @@ def main() -> int:
         print("Copy .env.example to .env and fill in your Thames Water login.", file=sys.stderr)
         return 1
 
-    email = os.environ["EMAIL"]
-    account_number = int(os.environ["ACCOUNT_NUMBER"])
-    meter = int(os.environ["METER"])
-    password = os.environ["PASSWORD"]
+    email = os.environ["THAMESWATER_EMAIL"]
+    account_number = int(os.environ["THAMESWATER_ACCOUNT_NUMBER"])
+    meter = int(os.environ["THAMESWATER_METER"])
+    password = os.environ["THAMESWATER_PASSWORD"]
 
     end = datetime.date.today()
     start = end - datetime.timedelta(days=6)
