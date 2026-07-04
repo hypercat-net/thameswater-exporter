@@ -1,6 +1,6 @@
 # thameswater-exporter
 
-[![CI](https://github.com/hypercat-net/thameswater-exporter/actions/workflows/ci.yml/badge.svg)](https://github.com/hypercat-net/thameswater-exporter/actions/workflows/ci.yml) [![License](https://img.shields.io/github/license/hypercat-net/thameswater-exporter)](https://github.com/hypercat-net/thameswater-exporter/blob/main/LICENSE) [![Docker](https://img.shields.io/docker/v/hypercat-net/thameswater-exporter?label=docker)](https://hub.docker.com/r/hypercat-net/thameswater-exporter)
+[![CI](https://github.com/hypercat-net/thameswater-exporter/actions/workflows/ci.yml/badge.svg)](https://github.com/hypercat-net/thameswater-exporter/actions/workflows/ci.yml) [![License](https://img.shields.io/github/license/hypercat-net/thameswater-exporter)](https://github.com/hypercat-net/thameswater-exporter/blob/main/LICENSE) [![Docker](https://img.shields.io/docker/v/hypercat42/thameswater-exporter?label=docker)](https://hub.docker.com/r/hypercat42/thameswater-exporter)
 
 Pushes your **hourly** Thames Water smart-meter readings into **Mimir** (via
 **Grafana Alloy**) using the Prometheus `remote_write` protocol, so you can graph
@@ -150,7 +150,7 @@ Alloy.
 
    ```bash
    docker compose up --build exporter
-   # or: docker run -d --env-file .env -v thameswater-state:/data -p 9100:9100 hypercat-net/thameswater-exporter:latest
+   # or: docker run -d --env-file .env -v thameswater-state:/data -p 9100:9100 hypercat42/thameswater-exporter:latest
    ```
 
 4. **Mimir** — you probably need **no changes**. Samples are at most ~7 days
@@ -249,7 +249,7 @@ tests/
 
 GitHub Actions runs `pytest` on every push and pull request. Pushes to `main`
 (and version tags `v*`) also build and publish
-[`hypercat-net/thameswater-exporter`](https://hub.docker.com/r/hypercat-net/thameswater-exporter)
+[`hypercat42/thameswater-exporter`](https://hub.docker.com/r/hypercat42/thameswater-exporter)
 to Docker Hub. A **weekly scheduled rebuild** (Sundays 04:17 UTC) refreshes
 `latest` against the current `python:3.12-slim` base even when application code
 has not changed — useful for picking up base-image CVE fixes.
@@ -258,7 +258,7 @@ Configure these [repository secrets](https://github.com/hypercat-net/thameswater
 
 | Secret | Description |
 | --- | --- |
-| `DOCKERHUB_USERNAME` | Your Docker Hub username or org (`hypercat-net`) |
+| `DOCKERHUB_USERNAME` | Your Docker Hub username (`hypercat42`) |
 | `DOCKERHUB_TOKEN` | Docker Hub [access token](https://hub.docker.com/settings/security) |
 
 Tags: `latest` and `sha-<commit>` on every `main` push and weekly rebuild;
