@@ -2,9 +2,10 @@
 
 [![CI](https://github.com/hypercat-net/thameswater-exporter/actions/workflows/ci.yml/badge.svg)](https://github.com/hypercat-net/thameswater-exporter/actions/workflows/ci.yml) [![License](https://img.shields.io/github/license/hypercat-net/thameswater-exporter)](https://github.com/hypercat-net/thameswater-exporter/blob/main/LICENSE) [![Docker](https://img.shields.io/docker/v/hypercat42/thameswater-exporter?label=docker)](https://hub.docker.com/r/hypercat42/thameswater-exporter)
 
-Pushes your **hourly** Thames Water smart-meter readings into **Mimir** (via
-**Grafana Alloy**) using the Prometheus `remote_write` protocol, so you can graph
-and alert on household water usage in Grafana.
+Pushes your **hourly** Thames Water smart-meter readings into **Mimir** using
+the Prometheus `remote_write` protocol, so you can graph and alert on household
+water usage in Grafana. Push **directly to Mimir** (recommended) or via **Grafana
+Alloy** `prometheus.receive_http`.
 
 [![BuyMeACoffee](https://raw.githubusercontent.com/barcar/buymeacoffee-badges/main/bmc-donate-white.svg)](https://buymeacoffee.com/barcar)
 
@@ -84,10 +85,19 @@ The exporter also serves its own health on `:9100` (`/healthz`, `/metrics`) with
 
 ## Architecture
 
+Two ingestion paths are supported. **Direct Mimir push** is the most reliable
+when samples carry historical `hour_start` timestamps (see [Mimir
+limits](#mimir-limits-for-historical-remote_write) below).
+
 ```
-Thames Water API ──► exporter ──remote_write(historical ts)──► Alloy ──► Mimir
-                                  prometheus.receive_http :9999   /api/v1/push
+Thames Water API ──► exporter ──remote_write(historical ts)──► Mimir  /api/v1/push
+                           │                                      (X-Scope-OrgID header)
+                           └── optional ──► Alloy receive_http ──► Mimir
+                                              :9999 (pick a free port)
 ```
+
+Scrape the exporter's own `:9100` health metrics normally (Alloy/Prometheus →
+Mimir); only the **water readings** use `remote_write` with backdated timestamps.
 
 ## Quick start (local test stack)
 
@@ -111,41 +121,25 @@ curl -s 'http://localhost:9009/prometheus/api/v1/query?query=thameswater_meter_r
   -H 'X-Scope-OrgID: anonymous'
 ```
 
-## Using with your existing Alloy + Mimir
+## Using with your existing Mimir
 
-This is the intended production setup: run only the exporter, and point it at
-Alloy.
+Run only the exporter container and push readings straight to Mimir's distributor.
+This avoids Alloy's `prometheus.remote_write` WAL dropping backdated samples as
+out-of-order (watch `prometheus_remote_write_wal_out_of_order_samples_total` on
+Alloy if you use the receiver path instead).
 
-1. **Add a receiver to your existing Alloy** (pick a free port; forward to your
-   *existing* `prometheus.remote_write` — it already has the right Mimir URL,
-   auth, and tenant):
-
-   ```alloy
-   prometheus.receive_http "thameswater" {
-     http {
-       listen_address = "0.0.0.0"
-       listen_port    = 9999   // any free port
-     }
-     forward_to = [prometheus.remote_write.YOUR_EXISTING.receiver]
-   }
-   ```
-
-   `prometheus.receive_http` does **not** forward incoming HTTP headers, so set
-   `X-Scope-OrgID` (and any auth) on your existing `prometheus.remote_write`,
-   not on the exporter. See [`config/alloy/config.alloy`](config/alloy/config.alloy)
-   for a minimal example of the receiver pattern.
-
-2. **Configure the exporter** (`.env` or container env):
+1. **Configure the exporter** (`.env` or container env):
 
    ```bash
    THAMESWATER_EMAIL=...
    THAMESWATER_PASSWORD=...
    THAMESWATER_ACCOUNT_NUMBER=...
    THAMESWATER_METER=...
-   THAMESWATER_EXPORTER_REMOTE_WRITE_URL=http://<your-alloy-host>:9999/api/v1/metrics/write
+   THAMESWATER_EXPORTER_REMOTE_WRITE_URL=http://<your-mimir-host>:9009/api/v1/push
+   THAMESWATER_EXPORTER_MIMIR_TENANT=<your-tenant>   # e.g. utility
    ```
 
-3. **Run the exporter** (persist `/data` so the high-water-mark survives
+2. **Run the exporter** (persist `/data` so the high-water-mark survives
    restarts):
 
    ```bash
@@ -153,25 +147,93 @@ Alloy.
    # or: docker run -d --env-file .env -v thameswater-state:/data -p 9100:9100 hypercat42/thameswater-exporter:latest
    ```
 
-4. **Mimir** — you probably need **no changes**. Samples are at most ~7 days
-   old and are pushed in timestamp order, which fits inside Mimir's default
-   acceptance window (~14 days). Only if writes are rejected (look for
-   `err-mimir-sample-timestamp-too-old` or `sample-out-of-order` in exporter
-   logs) relax limits for your tenant, e.g. via runtime overrides:
+3. **Adjust Mimir limits** for your tenant — see [Mimir limits for historical
+   remote_write](#mimir-limits-for-historical-remote_write) below.
 
-   ```yaml
-   reject_old_samples_max_age: 14d
-   out_of_order_time_window: 168h
-   ```
+### Optional: via Grafana Alloy
 
-   [`config/mimir/mimir.yaml`](config/mimir/mimir.yaml) is a **local test**
-   config only; do not merge it into a real Mimir.
+If you prefer to route through Alloy, add a receiver (pick a **free port**; `9999`
+is only an example) and forward to your existing `prometheus.remote_write`:
+
+```alloy
+prometheus.receive_http "thameswater" {
+  http {
+    listen_address = "0.0.0.0"
+    listen_port    = 9999   // any free port on your Alloy host
+  }
+  forward_to = [prometheus.remote_write.YOUR_EXISTING.receiver]
+}
+```
+
+`prometheus.receive_http` does **not** forward incoming HTTP headers, so set
+`X-Scope-OrgID` (and any auth) on your existing `prometheus.remote_write`, not
+on the exporter. See [`config/alloy/config.alloy`](config/alloy/config.alloy) for
+a minimal example.
+
+Exporter env for the Alloy path:
+
+```bash
+THAMESWATER_EXPORTER_REMOTE_WRITE_URL=http://<your-alloy-host>:9999/api/v1/metrics/write
+```
+
+If ingest succeeds on Alloy but Mimir stays empty, or Alloy's
+`prometheus_remote_write_wal_out_of_order_samples_total` grows while forwarded
+samples do not, switch to **direct Mimir push** above.
+
+### Mimir limits for historical remote_write
+
+Backfilled hours arrive with timestamps up to ~7 days in the past. On first run
+they are often ingested as **out-of-order** relative to the ingester head. You
+may need **both** relaxed ingest limits **and** a wider querier window before
+Grafana can see the data.
+
+Set these on the tenant (runtime overrides) or globally in `limits:` (requires
+Mimir restart for static config):
+
+```yaml
+# Ingest: accept backdated / out-of-order hourly samples (7-day backfill).
+out_of_order_time_window: 168h
+past_grace_period: 168h
+
+# Query: default query_ingesters_within is 13h — too short for samples still
+# in the ingester head. Without this, writes succeed but query_range returns {}.
+query_ingesters_within: 168h
+```
+
+If writes are rejected, check exporter logs for `sample-out-of-order` or
+`sample-too-old`. There is **no** Mimir limit named `reject_old_samples_max_age`;
+use `past_grace_period` instead.
+
+[`config/mimir/mimir.yaml`](config/mimir/mimir.yaml) is a **local test** config
+only; do not merge it wholesale into a real Mimir — copy only the `limits`
+snippets you need.
+
+### Querying in Grafana
+
+Water series have **no sample at "now"** until the latest hour is finalised
+(recent hours stay `IsEstimated` for a day or two). Symptoms:
+
+- **`query_range` over the backfill window** — works once Mimir limits above
+  are set.
+- **Instant query without a time modifier** — often empty; use a time-series
+  panel (range query) or an instant query with `@ <unix_ts>` / `@ <rfc3339>`.
+
+Example range query via curl:
+
+```bash
+curl -sG 'http://localhost:9009/prometheus/api/v1/query_range' \
+  --data-urlencode 'query=thameswater_meter_reading_litres_total' \
+  --data-urlencode 'start=2026-06-28T00:00:00Z' \
+  --data-urlencode 'end=2026-07-02T00:00:00Z' \
+  --data-urlencode 'step=3600' \
+  -H 'X-Scope-OrgID: <your-tenant>'
+```
 
 ## Day-to-day operation
 
 | Event | What happens |
 | --- | --- |
-| **First run** (no state file) | Logs in to Thames Water, fetches the last 7 days of hourly data, pushes every **finalised** hour to Alloy, saves high-water-mark to `THAMESWATER_EXPORTER_STATE_FILE`. |
+| **First run** (no state file) | Logs in to Thames Water, fetches the last 7 days of hourly data, pushes every **finalised** hour to Mimir (direct or via Alloy), saves high-water-mark to `THAMESWATER_EXPORTER_STATE_FILE`. |
 | **Each poll** (default hourly) | Re-authenticates, fetches from the high-water-mark day through today, pushes any newly finalised hours, stops at the first `IsEstimated` hour (not ready yet). |
 | **Restart** | Resumes from `THAMESWATER_EXPORTER_STATE_FILE`; does not re-push hours already sent. |
 | **Down > 7 days** | Hours before the rolling 7-day window are gone from Thames Water; exporter logs an **unrecoverable gap** warning and resumes from the oldest available hour. |
@@ -186,7 +248,7 @@ All via environment variables (see [`.env.example`](.env.example)):
 | Variable | Default | Description |
 | --- | --- | --- |
 | `THAMESWATER_EMAIL`, `THAMESWATER_PASSWORD`, `THAMESWATER_ACCOUNT_NUMBER`, `THAMESWATER_METER` | — | Thames Water login + meter (required) |
-| `THAMESWATER_EXPORTER_REMOTE_WRITE_URL` | `http://alloy:9999/api/v1/metrics/write` | Alloy receiver |
+| `THAMESWATER_EXPORTER_REMOTE_WRITE_URL` | `http://alloy:9999/api/v1/metrics/write` | Mimir `/api/v1/push` (recommended) or Alloy `receive_http` URL |
 | `THAMESWATER_EXPORTER_BACKFILL_DAYS` | `7` | History to load on first run (clamped to 7 — the hourly limit) |
 | `THAMESWATER_EXPORTER_CHUNK_DAYS` | `7` | Days of data fetched per request |
 | `THAMESWATER_EXPORTER_CHUNK_DELAY_SECONDS` | `1` | Pause between backfill requests |
@@ -195,7 +257,8 @@ All via environment variables (see [`.env.example`](.env.example)):
 | `THAMESWATER_EXPORTER_HEALTH_PORT` | `9100` | Self `/healthz` + `/metrics` |
 | `THAMESWATER_EXPORTER_LOG_LEVEL` | `INFO` | Logging verbosity |
 | `THAMESWATER_EXPORTER_EXTRA_LABELS` | — | e.g. `location=home,env=prod` |
-| `THAMESWATER_EXPORTER_REMOTE_WRITE_USERNAME` / `_PASSWORD` / `_BEARER_TOKEN`, `THAMESWATER_EXPORTER_MIMIR_TENANT` | — | Only if pushing **directly** to Mimir, bypassing Alloy |
+| `THAMESWATER_EXPORTER_MIMIR_TENANT` | — | **Required** for direct Mimir push (`X-Scope-OrgID` header) |
+| `THAMESWATER_EXPORTER_REMOTE_WRITE_USERNAME` / `_PASSWORD` / `_BEARER_TOKEN` | — | Optional auth on the remote_write endpoint |
 
 ## Using thameswaterapi directly
 

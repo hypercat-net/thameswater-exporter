@@ -1,7 +1,7 @@
 # Minimal single-process Mimir for LOCAL TESTING of the Thames Water exporter.
 # NOT a production configuration, and NOT meant to be merged into an existing
-# Mimir. If you already run Mimir, ignore everything here except `limits` below,
-# and even those are optional now (see the note there).
+# Mimir. If you already run Mimir, copy only the `limits` below into your tenant
+# overrides or global limits (see README "Mimir limits for historical remote_write").
 
 multitenancy_enabled: false
 
@@ -51,11 +51,10 @@ ruler_storage:
     dir: /data/ruler
 
 limits:
-  # NOTE: Because hourly data is clamped to the last 7 days and samples are
-  # pushed in timestamp order, the oldest sample is only ~7 days old. That is
-  # within Mimir's default reject_old_samples_max_age (~14 days) and needs no
-  # out-of-order ingestion, so an EXISTING Mimir typically needs NO changes.
-  # The two limits below are belt-and-braces for this local stack and give you
-  # headroom if you ever widen the backfill or replay corrected hours.
+  # Backfilled hourly samples are up to ~7 days old and may land out-of-order in
+  # the ingester head. An existing Mimir often needs these three limits on the
+  # target tenant (see README). There is no limit named reject_old_samples_max_age.
   reject_old_samples: false
-  out_of_order_time_window: 168h   # 7 days
+  out_of_order_time_window: 168h
+  past_grace_period: 168h
+  query_ingesters_within: 168h
