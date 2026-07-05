@@ -1,3 +1,3 @@
 """Thames Water smart-meter readings -> Prometheus remote_write exporter."""
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"

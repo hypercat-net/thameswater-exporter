@@ -168,7 +168,7 @@ Run only the exporter container and push readings straight to Mimir's distributo
 
    ```bash
    docker compose up --build exporter
-   # or: docker run -d --env-file .env -v thameswater-state:/data -p 9100:9100 hypercat42/thameswater-exporter:1.1.0
+   # or: docker run -d --env-file .env -v thameswater-state:/data -p 9100:9100 hypercat42/thameswater-exporter:1.2.0
    ```
 
 3. **Adjust Mimir limits** for your tenant — see [Mimir limits for historical
@@ -331,7 +331,7 @@ Configure these [repository secrets](https://github.com/hypercat-net/thameswater
 | `DOCKERHUB_TOKEN` | Docker Hub [access token](https://hub.docker.com/settings/security) |
 
 Tags: `latest` and `sha-<commit>` on every `main` push and weekly rebuild;
-`1.1.0`, `1.1`, and `1` when you push a version tag (e.g. `v1.1.0`). Images
+`1.2.0`, `1.2`, and `1` when you push a version tag (e.g. `v1.2.0`). Images
 are published for `linux/amd64` and `linux/arm64`.
 
 Pin production to a semver or `sha-` tag; use `latest` only if you pull
