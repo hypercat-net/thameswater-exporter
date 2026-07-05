@@ -78,10 +78,16 @@ increase(thameswater_meter_reading_litres_total[1h])
 increase(thameswater_meter_reading_litres_total[1d])
 ```
 
-The exporter also serves its own health on `:9100` (`/healthz`, `/metrics`) with
-`thameswater_exporter_up`, `*_last_success_timestamp_seconds`,
-`*_last_pushed_hour_timestamp_seconds`, `*_last_new_data_push_timestamp_seconds`,
-etc. Those are real-time and safe to scrape normally.
+The exporter also serves its own health on `:9100`:
+
+| Path | Purpose |
+| --- | --- |
+| `/` or `/status` | Human-readable status (timestamps as `YYYY-MM-DD HH:MM:SS UTC` with “x ago”) |
+| `/healthz` | Liveness probe (`ok`) |
+| `/metrics` | Prometheus self-metrics (`thameswater_exporter_up`, freshness timestamps, etc.) |
+
+Water readings are **not** on these endpoints; they are pushed to Mimir via `remote_write`.
+Only the self-metrics are real-time and safe to scrape normally.
 
 ### Why not Prometheus or Alloy?
 
@@ -127,7 +133,7 @@ docker compose up --build
 
 Then:
 
-- Exporter health: <http://localhost:9100/metrics>
+- Exporter health: <http://localhost:9100/status> (or `/metrics` for Prometheus)
 - Query Mimir with a **range** query (tenant `anonymous` in the local stack). An
   query at "now" is often empty because readings are backdated — see
   [Querying in Grafana](#querying-in-grafana) below. Adjust `start`/`end` to
