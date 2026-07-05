@@ -5,6 +5,8 @@ import logging
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+from thameswater_exporter import __version__
+
 log = logging.getLogger(__name__)
 
 
@@ -32,6 +34,58 @@ def update_data_metrics(
         ).timestamp()
     if last_new_data_push_unixtime is not None:
         STATS.last_new_data_push_unixtime = last_new_data_push_unixtime
+
+
+def _human_ago(seconds: int) -> str:
+    if seconds < 60:
+        return f"{seconds} second{'s' if seconds != 1 else ''} ago"
+    minutes, _ = divmod(seconds, 60)
+    if minutes < 60:
+        return f"{minutes} minute{'s' if minutes != 1 else ''} ago"
+    hours, minutes = divmod(minutes, 60)
+    if hours < 48:
+        if minutes:
+            return f"{hours} hour{'s' if hours != 1 else ''} {minutes} minute{'s' if minutes != 1 else ''} ago"
+        return f"{hours} hour{'s' if hours != 1 else ''} ago"
+    days, hours = divmod(hours, 24)
+    if hours:
+        return f"{days} day{'s' if days != 1 else ''} {hours} hour{'s' if hours != 1 else ''} ago"
+    return f"{days} day{'s' if days != 1 else ''} ago"
+
+
+def format_unixtime(
+    unixtime: float,
+    *,
+    now: datetime.datetime | None = None,
+) -> str:
+    if unixtime <= 0:
+        return "never"
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    dt = datetime.datetime.fromtimestamp(unixtime, tz=datetime.timezone.utc)
+    elapsed = max(0, int(now.timestamp() - unixtime))
+    return f"{dt.strftime('%Y-%m-%d %H:%M:%S')} UTC ({_human_ago(elapsed)})"
+
+
+def render_status_page(*, now: datetime.datetime | None = None) -> str:
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    status = "OK" if STATS.up else "FAILED"
+    lines = [
+        f"thameswater-exporter {__version__}",
+        "",
+        f"Status: {status}",
+        "",
+        f"Last collection cycle:     {format_unixtime(STATS.last_success_unixtime, now=now)}",
+        f"Last collection attempt:   {format_unixtime(STATS.last_run_unixtime, now=now)}",
+        f"Last new data push:        {format_unixtime(STATS.last_new_data_push_unixtime, now=now)}",
+        f"Newest reading hour:       {format_unixtime(STATS.last_pushed_hour_unixtime, now=now)}",
+        "",
+        f"Samples pushed (total): {STATS.samples_pushed_total}",
+        f"Push errors (total):    {STATS.push_errors_total}",
+        "",
+        "Prometheus metrics: /metrics",
+        "Liveness probe:     /healthz",
+    ]
+    return "\n".join(lines) + "\n"
 
 
 def render_self_metrics() -> str:
@@ -71,6 +125,10 @@ def start_health_server(port: int) -> None:
                 body = render_self_metrics().encode()
                 self.send_response(200)
                 self.send_header("Content-Type", "text/plain; version=0.0.4")
+            elif self.path in ("/", "/status"):
+                body = render_status_page().encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
             else:
                 self.send_response(404)
                 self.end_headers()
@@ -85,4 +143,7 @@ def start_health_server(port: int) -> None:
     server = ThreadingHTTPServer(("0.0.0.0", port), Handler)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
-    log.info("Health/self-metrics server listening on :%d (/healthz, /metrics)", port)
+    log.info(
+        "Health/self-metrics server listening on :%d (/, /status, /healthz, /metrics)",
+        port,
+    )
