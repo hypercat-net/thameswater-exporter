@@ -16,6 +16,7 @@ class Stats:
         self.last_run_unixtime = 0.0
         self.last_pushed_hour_unixtime = 0.0
         self.last_new_data_push_unixtime = 0.0
+        self.last_pushed_reading_litres = 0.0
         self.samples_pushed_total = 0
         self.push_errors_total = 0
         self.up = 0
@@ -27,6 +28,7 @@ STATS = Stats()
 def update_data_metrics(
     last_pushed_hour: datetime.datetime | None,
     last_new_data_push_unixtime: float | None = None,
+    last_pushed_reading_litres: float | None = None,
 ) -> None:
     if last_pushed_hour is not None:
         STATS.last_pushed_hour_unixtime = last_pushed_hour.astimezone(
@@ -34,6 +36,14 @@ def update_data_metrics(
         ).timestamp()
     if last_new_data_push_unixtime is not None:
         STATS.last_new_data_push_unixtime = last_new_data_push_unixtime
+    if last_pushed_reading_litres is not None:
+        STATS.last_pushed_reading_litres = last_pushed_reading_litres
+
+
+def format_reading_litres(litres: float) -> str:
+    if litres <= 0:
+        return "unknown"
+    return f"{litres:,.0f} L ({litres / 1000:,.3f} m³)"
 
 
 def _human_ago(seconds: int) -> str:
@@ -78,9 +88,10 @@ def render_status_page(*, now: datetime.datetime | None = None) -> str:
         f"Last collection attempt:   {format_unixtime(STATS.last_run_unixtime, now=now)}",
         f"Last new data push:        {format_unixtime(STATS.last_new_data_push_unixtime, now=now)}",
         f"Newest reading hour:       {format_unixtime(STATS.last_pushed_hour_unixtime, now=now)}",
+        f"Last published reading:    {format_reading_litres(STATS.last_pushed_reading_litres)}",
         "",
-        f"Samples pushed (total): {STATS.samples_pushed_total}",
-        f"Push errors (total):    {STATS.push_errors_total}",
+        f"Samples pushed (since restart): {STATS.samples_pushed_total}",
+        f"Push errors (since restart):    {STATS.push_errors_total}",
         "",
         "Prometheus metrics: /metrics",
         "Liveness probe:     /healthz",
@@ -93,22 +104,25 @@ def render_self_metrics() -> str:
         "# HELP thameswater_exporter_up Whether the last collection cycle succeeded.\n"
         "# TYPE thameswater_exporter_up gauge\n"
         f"thameswater_exporter_up {STATS.up}\n"
-        "# HELP thameswater_exporter_last_success_timestamp_seconds Unix time of the last collection cycle that completed without error.\n"
+        "# HELP thameswater_exporter_last_success_timestamp_seconds Unix time of the last collection cycle that completed without error (since restart).\n"
         "# TYPE thameswater_exporter_last_success_timestamp_seconds gauge\n"
         f"thameswater_exporter_last_success_timestamp_seconds {STATS.last_success_unixtime}\n"
-        "# HELP thameswater_exporter_last_run_timestamp_seconds Unix time of last collection attempt.\n"
+        "# HELP thameswater_exporter_last_run_timestamp_seconds Unix time of last collection attempt (since restart).\n"
         "# TYPE thameswater_exporter_last_run_timestamp_seconds gauge\n"
         f"thameswater_exporter_last_run_timestamp_seconds {STATS.last_run_unixtime}\n"
-        "# HELP thameswater_exporter_last_pushed_hour_timestamp_seconds Unix time of the newest finalised hour pushed to storage (high-water-mark).\n"
+        "# HELP thameswater_exporter_last_pushed_hour_timestamp_seconds Unix time of the newest finalised hour pushed to storage (high-water-mark; persisted across restarts).\n"
         "# TYPE thameswater_exporter_last_pushed_hour_timestamp_seconds gauge\n"
         f"thameswater_exporter_last_pushed_hour_timestamp_seconds {STATS.last_pushed_hour_unixtime}\n"
-        "# HELP thameswater_exporter_last_new_data_push_timestamp_seconds Unix time when the exporter last pushed one or more new finalised hours.\n"
+        "# HELP thameswater_exporter_last_new_data_push_timestamp_seconds Unix time when the exporter last pushed one or more new finalised hours (persisted across restarts).\n"
         "# TYPE thameswater_exporter_last_new_data_push_timestamp_seconds gauge\n"
         f"thameswater_exporter_last_new_data_push_timestamp_seconds {STATS.last_new_data_push_unixtime}\n"
-        "# HELP thameswater_exporter_samples_pushed_total Total samples pushed via remote_write.\n"
+        "# HELP thameswater_exporter_last_pushed_reading_litres Cumulative meter reading (litres) at the newest pushed hour (persisted across restarts).\n"
+        "# TYPE thameswater_exporter_last_pushed_reading_litres gauge\n"
+        f"thameswater_exporter_last_pushed_reading_litres {STATS.last_pushed_reading_litres}\n"
+        "# HELP thameswater_exporter_samples_pushed_total Total samples pushed via remote_write since this process started (resets on restart).\n"
         "# TYPE thameswater_exporter_samples_pushed_total counter\n"
         f"thameswater_exporter_samples_pushed_total {STATS.samples_pushed_total}\n"
-        "# HELP thameswater_exporter_push_errors_total Total failed collection/push cycles.\n"
+        "# HELP thameswater_exporter_push_errors_total Total failed collection/push cycles since this process started (resets on restart).\n"
         "# TYPE thameswater_exporter_push_errors_total counter\n"
         f"thameswater_exporter_push_errors_total {STATS.push_errors_total}\n"
     )

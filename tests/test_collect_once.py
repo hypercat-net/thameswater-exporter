@@ -84,6 +84,7 @@ def reset_stats():
         STATS.last_run_unixtime,
         STATS.last_pushed_hour_unixtime,
         STATS.last_new_data_push_unixtime,
+        STATS.last_pushed_reading_litres,
         STATS.samples_pushed_total,
         STATS.push_errors_total,
         STATS.up,
@@ -94,6 +95,7 @@ def reset_stats():
         STATS.last_run_unixtime,
         STATS.last_pushed_hour_unixtime,
         STATS.last_new_data_push_unixtime,
+        STATS.last_pushed_reading_litres,
         STATS.samples_pushed_total,
         STATS.push_errors_total,
         STATS.up,
@@ -144,6 +146,8 @@ def test_collect_once_pushes_final_hours_and_persists_state(
         2026, 6, 22, 2, 0, tzinfo=datetime.timezone.utc
     ).timestamp()
     assert STATS.last_new_data_push_unixtime > 0
+    assert saved["meters"]["311379681"]["last_pushed_reading_litres"] == 1046.0
+    assert STATS.last_pushed_reading_litres == 1046.0
 
     pushed.clear()
     collect_once(cfg, FakeWriter(), stop)

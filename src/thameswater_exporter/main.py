@@ -35,7 +35,11 @@ def main() -> None:
     start_health_server(cfg.health_port)
 
     state = load_meter_state(cfg.state_file, cfg.meter)
-    update_data_metrics(state.last_pushed_hour, state.last_new_data_push_unixtime)
+    update_data_metrics(
+        state.last_pushed_hour,
+        state.last_new_data_push_unixtime,
+        state.last_pushed_reading_litres,
+    )
 
     writer = RemoteWriter(
         url=cfg.remote_write_url,

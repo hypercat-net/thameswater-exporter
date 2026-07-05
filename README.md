@@ -82,7 +82,7 @@ The exporter also serves its own health on `:9100`:
 
 | Path | Purpose |
 | --- | --- |
-| `/` or `/status` | Human-readable status (timestamps as `YYYY-MM-DD HH:MM:SS UTC` with “x ago”) |
+| `/` or `/status` | Human-readable status (timestamps as `YYYY-MM-DD HH:MM:SS UTC` with “x ago”, last published meter reading) |
 | `/healthz` | Liveness probe (`ok`) |
 | `/metrics` | Prometheus self-metrics (`thameswater_exporter_up`, freshness timestamps, etc.) |
 
@@ -237,9 +237,12 @@ on `:9100/metrics` to confirm the exporter is running. For data freshness:
 
 | Metric | Meaning |
 | --- | --- |
-| `last_success_timestamp_seconds` | Last collection cycle completed without error (even if nothing new to push) |
-| `last_new_data_push_timestamp_seconds` | Last time one or more **new** finalised hours were pushed |
-| `last_pushed_hour_timestamp_seconds` | `hour_start` of the newest hour in storage (high-water-mark) |
+| `last_success_timestamp_seconds` | Last collection cycle completed without error (since restart) |
+| `last_new_data_push_timestamp_seconds` | Last time one or more **new** finalised hours were pushed (persisted) |
+| `last_pushed_hour_timestamp_seconds` | `hour_start` of the newest hour in storage (persisted high-water-mark) |
+| `last_pushed_reading_litres` | Cumulative meter reading (litres) at the newest pushed hour (persisted) |
+| `samples_pushed_total` | Samples pushed via `remote_write` since restart |
+| `push_errors_total` | Failed collection/push cycles since restart |
 
 Example alerts: no successful cycles for 2h; no new data push for 48h; high-water-mark
 more than 72h behind now.

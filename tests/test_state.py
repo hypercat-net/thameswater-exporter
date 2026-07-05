@@ -8,11 +8,18 @@ def test_save_and_load_meter_state_roundtrip(tmp_path):
     state_file = tmp_path / "state.json"
     hour = datetime.datetime(2026, 6, 22, 3, 0, tzinfo=datetime.timezone.utc)
 
-    save_meter_state(str(state_file), "311379681", hour, new_data_push_unixtime=1_700_000_000.0)
+    save_meter_state(
+        str(state_file),
+        "311379681",
+        hour,
+        new_data_push_unixtime=1_700_000_000.0,
+        reading_litres=12345.0,
+    )
     loaded = load_meter_state(str(state_file), "311379681")
 
     assert loaded.last_pushed_hour == hour
     assert loaded.last_new_data_push_unixtime == 1_700_000_000.0
+    assert loaded.last_pushed_reading_litres == 12345.0
 
 
 def test_load_meter_state_missing_file_returns_empty(tmp_path):

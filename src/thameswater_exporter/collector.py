@@ -75,7 +75,11 @@ def collect_once(
 
     state = load_meter_state(cfg.state_file, cfg.meter)
     hwm = state.last_pushed_hour
-    update_data_metrics(hwm, state.last_new_data_push_unixtime)
+    update_data_metrics(
+        hwm,
+        state.last_new_data_push_unixtime,
+        state.last_pushed_reading_litres,
+    )
     now_london = datetime.datetime.now(LONDON)
 
     start_date, end_date, gap = compute_fetch_window(now_london, hwm, cfg.backfill_days)
@@ -171,13 +175,15 @@ def collect_once(
 
         hwm = to_push[-1].hour_start
         push_unixtime = time.time()
+        last_reading = float(to_push[-1].total)
         save_meter_state(
             cfg.state_file,
             cfg.meter,
             hwm,
             new_data_push_unixtime=push_unixtime,
+            reading_litres=last_reading,
         )
-        update_data_metrics(hwm, push_unixtime)
+        update_data_metrics(hwm, push_unixtime, last_reading)
         total_pushed += len(to_push)
         STATS.samples_pushed_total += len(to_push) * len(payload)
 

@@ -13,9 +13,11 @@ class MeterState:
         self,
         last_pushed_hour: datetime.datetime | None,
         last_new_data_push_unixtime: float | None = None,
+        last_pushed_reading_litres: float | None = None,
     ) -> None:
         self.last_pushed_hour = last_pushed_hour
         self.last_new_data_push_unixtime = last_new_data_push_unixtime
+        self.last_pushed_reading_litres = last_pushed_reading_litres
 
 
 def load_meter_state(state_file: str, meter: str) -> MeterState:
@@ -31,9 +33,11 @@ def load_meter_state(state_file: str, meter: str) -> MeterState:
     meter_state = state.get("meters", {}).get(str(meter), {})
     iso = meter_state.get("last_pushed_hour")
     push_unixtime = meter_state.get("last_new_data_push_unixtime")
+    reading_litres = meter_state.get("last_pushed_reading_litres")
     return MeterState(
         datetime.datetime.fromisoformat(iso) if iso else None,
         float(push_unixtime) if push_unixtime is not None else None,
+        float(reading_litres) if reading_litres is not None else None,
     )
 
 
@@ -43,6 +47,7 @@ def save_meter_state(
     hour_start: datetime.datetime,
     *,
     new_data_push_unixtime: float | None = None,
+    reading_litres: float | None = None,
 ) -> None:
     state: dict = {"meters": {}}
     try:
@@ -58,6 +63,8 @@ def save_meter_state(
     }
     if new_data_push_unixtime is not None:
         entry["last_new_data_push_unixtime"] = new_data_push_unixtime
+    if reading_litres is not None:
+        entry["last_pushed_reading_litres"] = reading_litres
     state.setdefault("meters", {})[str(meter)] = entry
 
     parent = os.path.dirname(state_file)
