@@ -4,11 +4,24 @@ import threading
 from types import SimpleNamespace
 
 import pytest
-from thameswaterapi import Line, MeterUsage
+from thameswaterapi import Account, Line, MeterUsage, Tariff
 
 from thameswater_exporter.collector import collect_once
-from thameswater_exporter.constants import LONDON
+from thameswater_exporter.constants import HOURLY_VOLUMETRIC_COST_METRIC, LONDON
 from thameswater_exporter.health import STATS
+from thameswater_exporter.state import save_cached_tariff
+
+FIXED_TARIFF = Tariff(
+    clean_water_rate_per_m3=1.0,
+    wastewater_rate_per_m3=2.0,
+    water_fixed_per_year=365.0,
+    wastewater_fixed_per_year=730.0,
+)
+FIXED_ACCOUNT = Account(
+    contractAccountNumber="900024395406",
+    currentBalance=12.34,
+    paymentDueAmount=56.78,
+)
 
 FIXED_NOW = datetime.datetime(2026, 6, 28, 12, 0, tzinfo=LONDON)
 
@@ -123,6 +136,12 @@ def test_collect_once_pushes_final_hours_and_persists_state(
         def __init__(self, **kwargs):
             pass
 
+        def get_tariff(self):
+            return FIXED_TARIFF
+
+        def get_account(self):
+            return FIXED_ACCOUNT
+
         def get_meter_usage(self, meter, start, end, granularity="H"):
             return usage
 
@@ -130,12 +149,16 @@ def test_collect_once_pushes_final_hours_and_persists_state(
 
     collect_once(cfg, FakeWriter(), stop)
 
-    assert len(pushed) == 1
+    assert len(pushed) == 2
     reading = next(
-        s for s in pushed[0] if s["metric"]["__name__"] == "thameswater_meter_reading_litres_total"
+        s for s in pushed[1] if s["metric"]["__name__"] == "thameswater_meter_reading_litres_total"
     )
     assert len(reading["values"]) == 4
     assert reading["values"] == [1010.0, 1021.0, 1033.0, 1046.0]
+    cost = next(
+        s for s in pushed[1] if s["metric"]["__name__"] == HOURLY_VOLUMETRIC_COST_METRIC
+    )
+    assert cost["values"] == [0.03, 0.033, 0.036, 0.039]
 
     saved = json.loads(state_file.read_text())
     last = saved["meters"]["311379681"]["last_pushed_hour"]
@@ -151,7 +174,7 @@ def test_collect_once_pushes_final_hours_and_persists_state(
 
     pushed.clear()
     collect_once(cfg, FakeWriter(), stop)
-    assert pushed == []
+    assert len(pushed) == 1
 
 
 def test_collect_once_resumes_after_high_water_mark(
@@ -187,6 +210,12 @@ def test_collect_once_resumes_after_high_water_mark(
         def __init__(self, **kwargs):
             pass
 
+        def get_tariff(self):
+            return FIXED_TARIFF
+
+        def get_account(self):
+            return FIXED_ACCOUNT
+
         def get_meter_usage(self, meter, start, end, granularity="H"):
             return usage
 
@@ -195,7 +224,7 @@ def test_collect_once_resumes_after_high_water_mark(
     collect_once(cfg, FakeWriter(), stop)
 
     reading = next(
-        s for s in pushed[0] if s["metric"]["__name__"] == "thameswater_meter_reading_litres_total"
+        s for s in pushed[1] if s["metric"]["__name__"] == "thameswater_meter_reading_litres_total"
     )
     assert len(reading["values"]) == 1
     assert reading["values"] == [1046.0]
@@ -220,6 +249,12 @@ def test_collect_once_skips_empty_api_response(tmp_path, monkeypatch, reset_stat
         def __init__(self, **kwargs):
             pass
 
+        def get_tariff(self):
+            return FIXED_TARIFF
+
+        def get_account(self):
+            return FIXED_ACCOUNT
+
         def get_meter_usage(self, meter, start, end, granularity="H"):
             return empty
 
@@ -227,5 +262,48 @@ def test_collect_once_skips_empty_api_response(tmp_path, monkeypatch, reset_stat
 
     collect_once(cfg, FakeWriter(), stop)
 
-    assert pushed == []
-    assert not state_file.exists()
+    assert len(pushed) == 1
+    saved = json.loads(state_file.read_text())
+    assert "tariff" in saved
+    assert "meters" not in saved
+
+
+def test_collect_once_uses_cached_tariff_when_fetch_fails(
+    tmp_path, monkeypatch, reset_stats
+):
+    _freeze_now(monkeypatch)
+
+    state_file = tmp_path / "state.json"
+    save_cached_tariff(str(state_file), FIXED_TARIFF)
+    cfg = _cfg(str(state_file))
+    stop = threading.Event()
+    pushed: list[dict] = []
+
+    class FakeWriter:
+        def send(self, payload):
+            pushed.append(payload)
+
+    usage = _meter_usage(_lines(5, estimated_from=4))
+
+    class FakeTW:
+        def __init__(self, **kwargs):
+            pass
+
+        def get_tariff(self):
+            raise RuntimeError("tariff page unavailable")
+
+        def get_account(self):
+            return FIXED_ACCOUNT
+
+        def get_meter_usage(self, meter, start, end, granularity="H"):
+            return usage
+
+    monkeypatch.setattr("thameswater_exporter.collector.ThamesWater", FakeTW)
+
+    collect_once(cfg, FakeWriter(), stop)
+
+    assert len(pushed) == 2
+    cost = next(
+        s for s in pushed[1] if s["metric"]["__name__"] == HOURLY_VOLUMETRIC_COST_METRIC
+    )
+    assert cost["values"] == [0.03, 0.033, 0.036, 0.039]

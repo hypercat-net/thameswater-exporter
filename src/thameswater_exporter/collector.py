@@ -10,10 +10,15 @@ from thameswaterapi import ThamesWater
 
 from thameswater_exporter.config import Config
 from thameswater_exporter.constants import HOURLY_AVAILABILITY_DAYS, LONDON
-from thameswater_exporter.health import STATS, update_data_metrics
+from thameswater_exporter.health import STATS, update_data_metrics, update_snapshot_metrics
 from thameswater_exporter.readings import Measurement, lines_to_measurements
-from thameswater_exporter.remote_write import build_write_payload
-from thameswater_exporter.state import load_meter_state, save_meter_state
+from thameswater_exporter.remote_write import build_snapshot_payload, build_write_payload
+from thameswater_exporter.state import (
+    load_cached_tariff,
+    load_meter_state,
+    save_cached_tariff,
+    save_meter_state,
+)
 
 log = logging.getLogger(__name__)
 
@@ -119,6 +124,56 @@ def collect_once(
         account_number=cfg.account_number,
     )
 
+    tariff = load_cached_tariff(cfg.state_file)
+    try:
+        fresh_tariff = client.get_tariff()
+        save_cached_tariff(cfg.state_file, fresh_tariff)
+        tariff = fresh_tariff
+        log.info(
+            "Tariff: £%.4f/m3 volumetric, £%.4f/day water standing, "
+            "£%.4f/day wastewater standing",
+            tariff.clean_water_rate_per_m3 + tariff.wastewater_rate_per_m3,
+            tariff.water_fixed_per_year / 365,
+            tariff.wastewater_fixed_per_year / 365,
+        )
+    except Exception:
+        if tariff is not None:
+            log.warning(
+                "Could not fetch tariff; using cached values from %s",
+                cfg.state_file,
+                exc_info=True,
+            )
+        else:
+            log.warning(
+                "Could not fetch tariff and no cached values in %s; "
+                "cost metrics will be skipped",
+                cfg.state_file,
+                exc_info=True,
+            )
+    update_snapshot_metrics(tariff=tariff)
+
+    account = None
+    try:
+        account = client.get_account()
+        log.info(
+            "Account balance: current=£%.2f, payment due=£%.2f",
+            account.currentBalance,
+            account.paymentDueAmount,
+        )
+    except Exception:
+        log.warning("Could not fetch account balances", exc_info=True)
+    update_snapshot_metrics(account=account)
+
+    snapshot = build_snapshot_payload(
+        base_labels,
+        int(time.time() * 1000),
+        tariff=tariff,
+        account=account,
+    )
+    if snapshot:
+        writer.send(snapshot)
+        STATS.samples_pushed_total += len(snapshot)
+
     chunks = iter_date_chunks(start_date, end_date, cfg.chunk_days)
     total_pushed = 0
 
@@ -161,7 +216,7 @@ def collect_once(
         if not to_push:
             continue
 
-        payload = build_write_payload(to_push, base_labels)
+        payload = build_write_payload(to_push, base_labels, tariff=tariff)
 
         log.info(
             "Pushing %d finalised hours (%s -> %s), meter reading %.0f L, to %s",

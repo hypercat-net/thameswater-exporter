@@ -1,12 +1,16 @@
 import datetime
 
+from thameswaterapi import Account, Tariff
+
 from thameswater_exporter.health import (
     STATS,
+    format_gbp,
     format_reading_litres,
     format_unixtime,
     render_self_metrics,
     render_status_page,
     update_data_metrics,
+    update_snapshot_metrics,
 )
 
 FIXED_NOW = datetime.datetime(2026, 7, 5, 12, 0, 0, tzinfo=datetime.timezone.utc)
@@ -43,6 +47,14 @@ def test_format_reading_litres_includes_litres_and_cubic_metres():
     assert format_reading_litres(1046) == "1,046 L (1.046 m³)"
 
 
+def test_format_gbp_unknown_for_zero():
+    assert format_gbp(0) == "unknown"
+
+
+def test_format_gbp_includes_currency_and_suffix():
+    assert format_gbp(3.25, suffix="/day") == "GBP 3.2500/day"
+
+
 def test_format_unixtime_never_for_zero():
     assert format_unixtime(0) == "never"
 
@@ -62,6 +74,19 @@ def test_render_status_page_is_human_readable():
         2026, 7, 4, 22, 0, tzinfo=datetime.timezone.utc
     ).timestamp()
     STATS.last_pushed_reading_litres = 1046
+    update_snapshot_metrics(
+        tariff=Tariff(
+            clean_water_rate_per_m3=1.0,
+            wastewater_rate_per_m3=2.0,
+            water_fixed_per_year=365.0,
+            wastewater_fixed_per_year=730.0,
+        ),
+        account=Account(
+            contractAccountNumber="900024395406",
+            currentBalance=12.34,
+            paymentDueAmount=56.78,
+        ),
+    )
     STATS.samples_pushed_total = 42
     STATS.push_errors_total = 1
 
@@ -72,6 +97,13 @@ def test_render_status_page_is_human_readable():
     assert "Last new data push:        2026-07-05 10:00:00 UTC (2 hours ago)" in page
     assert "Newest reading hour:       2026-07-04 22:00:00 UTC (14 hours ago)" in page
     assert "Last published reading:    1,046 L (1.046 m³)" in page
+    assert "Tariff volumetric rate:    GBP 3.0000/m³" in page
+    assert "Tariff clean water:        GBP 1.0000/m³" in page
+    assert "Tariff wastewater:         GBP 2.0000/m³" in page
+    assert "Water standing charge:     GBP 1.0000/day" in page
+    assert "Wastewater standing:       GBP 2.0000/day" in page
+    assert "Account current balance:   GBP 12.3400" in page
+    assert "Account payment due:       GBP 56.7800" in page
     assert "Samples pushed (since restart): 42" in page
     assert "Push errors (since restart):    1" in page
     assert "Prometheus metrics: /metrics" in page

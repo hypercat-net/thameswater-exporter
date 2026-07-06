@@ -5,7 +5,13 @@ import logging
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+from thameswaterapi import Account, Tariff
+
 from thameswater_exporter import __version__
+from thameswater_exporter.tariff import (
+    water_standing_charge_per_day,
+    wastewater_standing_charge_per_day,
+)
 
 log = logging.getLogger(__name__)
 
@@ -17,6 +23,12 @@ class Stats:
         self.last_pushed_hour_unixtime = 0.0
         self.last_new_data_push_unixtime = 0.0
         self.last_pushed_reading_litres = 0.0
+        self.tariff_clean_water_rate_per_m3 = 0.0
+        self.tariff_wastewater_rate_per_m3 = 0.0
+        self.tariff_water_standing_charge_per_day = 0.0
+        self.tariff_wastewater_standing_charge_per_day = 0.0
+        self.account_current_balance_gbp = 0.0
+        self.account_payment_due_gbp = 0.0
         self.samples_pushed_total = 0
         self.push_errors_total = 0
         self.up = 0
@@ -40,10 +52,35 @@ def update_data_metrics(
         STATS.last_pushed_reading_litres = last_pushed_reading_litres
 
 
+def update_snapshot_metrics(
+    *,
+    tariff: Tariff | None = None,
+    account: Account | None = None,
+) -> None:
+    if tariff is not None:
+        STATS.tariff_clean_water_rate_per_m3 = tariff.clean_water_rate_per_m3
+        STATS.tariff_wastewater_rate_per_m3 = tariff.wastewater_rate_per_m3
+        STATS.tariff_water_standing_charge_per_day = water_standing_charge_per_day(
+            tariff
+        )
+        STATS.tariff_wastewater_standing_charge_per_day = (
+            wastewater_standing_charge_per_day(tariff)
+        )
+    if account is not None:
+        STATS.account_current_balance_gbp = account.currentBalance
+        STATS.account_payment_due_gbp = account.paymentDueAmount
+
+
 def format_reading_litres(litres: float) -> str:
     if litres <= 0:
         return "unknown"
     return f"{litres:,.0f} L ({litres / 1000:,.3f} m³)"
+
+
+def format_gbp(value: float, *, suffix: str = "") -> str:
+    if value <= 0:
+        return "unknown"
+    return f"GBP {value:,.4f}{suffix}"
 
 
 def _human_ago(seconds: int) -> str:
@@ -89,6 +126,15 @@ def render_status_page(*, now: datetime.datetime | None = None) -> str:
         f"Last new data push:        {format_unixtime(STATS.last_new_data_push_unixtime, now=now)}",
         f"Newest reading hour:       {format_unixtime(STATS.last_pushed_hour_unixtime, now=now)}",
         f"Last published reading:    {format_reading_litres(STATS.last_pushed_reading_litres)}",
+        "",
+        f"Tariff volumetric rate:    {format_gbp(STATS.tariff_clean_water_rate_per_m3 + STATS.tariff_wastewater_rate_per_m3, suffix='/m³')}",
+        f"Tariff clean water:        {format_gbp(STATS.tariff_clean_water_rate_per_m3, suffix='/m³')}",
+        f"Tariff wastewater:         {format_gbp(STATS.tariff_wastewater_rate_per_m3, suffix='/m³')}",
+        f"Water standing charge:     {format_gbp(STATS.tariff_water_standing_charge_per_day, suffix='/day')}",
+        f"Wastewater standing:       {format_gbp(STATS.tariff_wastewater_standing_charge_per_day, suffix='/day')}",
+        "",
+        f"Account current balance:   {format_gbp(STATS.account_current_balance_gbp)}",
+        f"Account payment due:       {format_gbp(STATS.account_payment_due_gbp)}",
         "",
         f"Samples pushed (since restart): {STATS.samples_pushed_total}",
         f"Push errors (since restart):    {STATS.push_errors_total}",

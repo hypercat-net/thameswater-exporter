@@ -8,7 +8,7 @@ water usage in Grafana.
 
 [![BuyMeACoffee](https://raw.githubusercontent.com/barcar/buymeacoffee-badges/main/bmc-donate-white.svg)](https://buymeacoffee.com/barcar)
 
-It uses [**thameswaterapi**](https://github.com/jelmer/thameswaterapi) (PyPI:
+It uses [jelmer/thameswaterapi](https://github.com/jelmer/thameswaterapi) (PyPI:
 `thameswaterapi`) for Thames Water authentication and API access — a maintained
 fork of [AyrtonB/Thames-Water](https://github.com/AyrtonB/Thames-Water/). Exporter-specific
 logic (finalised-hour filtering, `remote_write` push, state) lives in the
@@ -65,6 +65,30 @@ integration or extra state.
 | --- | --- | --- | --- |
 | `thameswater_meter_reading_litres_total` | counter | `Read` | Cumulative meter reading (litres). Use `increase()` / `rate()`. |
 | `thameswater_hourly_usage_litres` | gauge | `Usage` | Litres used during that hour. |
+| `thameswater_hourly_volumetric_cost_gbp` | gauge | derived | Estimated volumetric cost for that hour (`Usage` × current tariff £/m³). |
+
+Each collection cycle also pushes **snapshot** gauges (timestamp = fetch time, not
+`hour_start`):
+
+| Metric | Source | Meaning |
+| --- | --- | --- |
+| `thameswater_tariff_clean_water_rate_gbp_per_m3` | `get_tariff()` | Published clean-water volumetric rate |
+| `thameswater_tariff_wastewater_rate_gbp_per_m3` | `get_tariff()` | Published wastewater volumetric rate |
+| `thameswater_tariff_water_standing_charge_gbp_per_day` | `get_tariff()` | Water fixed charge ÷ 365 |
+| `thameswater_tariff_wastewater_standing_charge_gbp_per_day` | `get_tariff()` | Wastewater fixed charge ÷ 365 |
+| `thameswater_account_current_balance_gbp` | `get_account()` | Account `currentBalance` |
+| `thameswater_account_payment_due_gbp` | `get_account()` | Account `paymentDueAmount` (amount due) |
+
+Tariff figures are region-wide (scraped from Thames Water's public Scheme of
+Charges). Volumetric cost is an estimate from published rates, not your actual
+bill. Standing charges are exported separately and are **not** included in hourly
+cost. Tariff rates are cached in `state.json` after a successful fetch and
+reused when the tariff page is unavailable. If tariff fetch fails and no cache
+exists, cost metrics are skipped for that cycle. Account fetch failures skip
+account metrics only.
+
+`thameswaterapi` does not currently expose a `totalBalance` field — only
+`currentBalance` and `paymentDueAmount` from the account-management API.
 
 Labels: `meter`, `account`, `serial` (+ anything in `THAMESWATER_EXPORTER_EXTRA_LABELS`).
 
@@ -76,6 +100,9 @@ increase(thameswater_meter_reading_litres_total[1h])
 
 # litres used per day
 increase(thameswater_meter_reading_litres_total[1d])
+
+# estimated volumetric cost per hour (GBP)
+thameswater_hourly_volumetric_cost_gbp
 ```
 
 The exporter also serves its own health on `:9100`:
@@ -168,7 +195,7 @@ Run only the exporter container and push readings straight to Mimir's distributo
 
    ```bash
    docker compose up --build exporter
-   # or: docker run -d --env-file .env -v thameswater-state:/data -p 9100:9100 hypercat42/thameswater-exporter:1.3.0
+   # or: docker run -d --env-file .env -v thameswater-state:/data -p 9100:9100 hypercat42/thameswater-exporter:1.4.0
    ```
 
 3. **Adjust Mimir limits** for your tenant — see [Mimir limits for historical
@@ -331,7 +358,7 @@ Configure these [repository secrets](https://github.com/hypercat-net/thameswater
 | `DOCKERHUB_TOKEN` | Docker Hub [access token](https://hub.docker.com/settings/security) |
 
 Tags: `latest` and `sha-<commit>` on every `main` push and weekly rebuild;
-`1.3.0`, `1.3`, and `1` when you push a version tag (e.g. `v1.3.0`). Images
+`1.4.0`, `1.4`, and `1` when you push a version tag (e.g. `v1.4.0`). Images
 are published for `linux/amd64` and `linux/arm64`. A weekly workflow deletes
 `sha-*` tags older than 90 days (semver and `latest` are never removed); run
 [Prune Docker sha tags](https://github.com/hypercat-net/thameswater-exporter/actions/workflows/prune-docker-tags.yml)
