@@ -2,7 +2,6 @@ from thameswaterapi import Account, Tariff
 
 from thameswater_exporter.constants import (
     ACCOUNT_CURRENT_BALANCE_METRIC,
-    ACCOUNT_PAYMENT_DUE_METRIC,
     HOURLY_VOLUMETRIC_COST_METRIC,
     TARIFF_CLEAN_WATER_RATE_METRIC,
     TARIFF_STANDING_CHARGE_WASTEWATER_METRIC,
@@ -73,7 +72,6 @@ def test_build_snapshot_payload_includes_tariff_and_account():
         TARIFF_STANDING_CHARGE_WATER_METRIC,
         TARIFF_STANDING_CHARGE_WASTEWATER_METRIC,
         ACCOUNT_CURRENT_BALANCE_METRIC,
-        ACCOUNT_PAYMENT_DUE_METRIC,
     }
     standing = next(
         s

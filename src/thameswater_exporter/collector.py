@@ -155,11 +155,7 @@ def collect_once(
     account = None
     try:
         account = client.get_account()
-        log.info(
-            "Account balance: current=£%.2f, payment due=£%.2f",
-            account.currentBalance,
-            account.paymentDueAmount,
-        )
+        log.info("Account balance: current=£%.2f", account.currentBalance)
     except Exception:
         log.warning("Could not fetch account balances", exc_info=True)
     update_snapshot_metrics(account=account)

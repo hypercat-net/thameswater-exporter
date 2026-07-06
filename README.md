@@ -77,7 +77,6 @@ Each collection cycle also pushes **snapshot** gauges (timestamp = fetch time, n
 | `thameswater_tariff_water_standing_charge_gbp_per_day` | `get_tariff()` | Water fixed charge ÷ 365 |
 | `thameswater_tariff_wastewater_standing_charge_gbp_per_day` | `get_tariff()` | Wastewater fixed charge ÷ 365 |
 | `thameswater_account_current_balance_gbp` | `get_account()` | Account `currentBalance` |
-| `thameswater_account_payment_due_gbp` | `get_account()` | Account `paymentDueAmount` (amount due) |
 
 Tariff figures are region-wide (scraped from Thames Water's public Scheme of
 Charges). Volumetric cost is an estimate from published rates, not your actual
@@ -88,7 +87,7 @@ exists, cost metrics are skipped for that cycle. Account fetch failures skip
 account metrics only.
 
 `thameswaterapi` does not currently expose a `totalBalance` field — only
-`currentBalance` and `paymentDueAmount` from the account-management API.
+`currentBalance` from the account-management API.
 
 Labels: `meter`, `account`, `serial` (+ anything in `THAMESWATER_EXPORTER_EXTRA_LABELS`).
 
@@ -195,7 +194,7 @@ Run only the exporter container and push readings straight to Mimir's distributo
 
    ```bash
    docker compose up --build exporter
-   # or: docker run -d --env-file .env -v thameswater-state:/data -p 9100:9100 hypercat42/thameswater-exporter:1.4.0
+   # or: docker run -d --env-file .env -v thameswater-state:/data -p 9100:9100 hypercat42/thameswater-exporter:1.4.1
    ```
 
 3. **Adjust Mimir limits** for your tenant — see [Mimir limits for historical
@@ -358,7 +357,7 @@ Configure these [repository secrets](https://github.com/hypercat-net/thameswater
 | `DOCKERHUB_TOKEN` | Docker Hub [access token](https://hub.docker.com/settings/security) |
 
 Tags: `latest` and `sha-<commit>` on every `main` push and weekly rebuild;
-`1.4.0`, `1.4`, and `1` when you push a version tag (e.g. `v1.4.0`). Images
+`1.4.1`, `1.4`, and `1` when you push a version tag (e.g. `v1.4.1`). Images
 are published for `linux/amd64` and `linux/arm64`. A weekly workflow deletes
 `sha-*` tags older than 90 days (semver and `latest` are never removed); run
 [Prune Docker sha tags](https://github.com/hypercat-net/thameswater-exporter/actions/workflows/prune-docker-tags.yml)

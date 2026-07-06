@@ -6,7 +6,6 @@ from thameswaterapi import Account, Tariff
 
 from thameswater_exporter.constants import (
     ACCOUNT_CURRENT_BALANCE_METRIC,
-    ACCOUNT_PAYMENT_DUE_METRIC,
     TARIFF_CLEAN_WATER_RATE_METRIC,
     TARIFF_STANDING_CHARGE_WASTEWATER_METRIC,
     TARIFF_STANDING_CHARGE_WATER_METRIC,
@@ -45,5 +44,4 @@ def tariff_snapshot_values(tariff: Tariff) -> list[tuple[str, float]]:
 def account_snapshot_values(account: Account) -> list[tuple[str, float]]:
     return [
         (ACCOUNT_CURRENT_BALANCE_METRIC, account.currentBalance),
-        (ACCOUNT_PAYMENT_DUE_METRIC, account.paymentDueAmount),
     ]

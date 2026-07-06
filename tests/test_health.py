@@ -4,6 +4,7 @@ from thameswaterapi import Account, Tariff
 
 from thameswater_exporter.health import (
     STATS,
+    format_balance_gbp,
     format_gbp,
     format_reading_litres,
     format_unixtime,
@@ -55,6 +56,15 @@ def test_format_gbp_includes_currency_and_suffix():
     assert format_gbp(3.25, suffix="/day") == "GBP 3.2500/day"
 
 
+def test_format_balance_gbp_unknown_for_none():
+    assert format_balance_gbp(None) == "unknown"
+
+
+def test_format_balance_gbp_allows_zero_and_negative():
+    assert format_balance_gbp(0) == "GBP 0.0000"
+    assert format_balance_gbp(-15.5) == "GBP -15.5000"
+
+
 def test_format_unixtime_never_for_zero():
     assert format_unixtime(0) == "never"
 
@@ -103,7 +113,6 @@ def test_render_status_page_is_human_readable():
     assert "Water standing charge:     GBP 1.0000/day" in page
     assert "Wastewater standing:       GBP 2.0000/day" in page
     assert "Account current balance:   GBP 12.3400" in page
-    assert "Account payment due:       GBP 56.7800" in page
     assert "Samples pushed (since restart): 42" in page
     assert "Push errors (since restart):    1" in page
     assert "Prometheus metrics: /metrics" in page

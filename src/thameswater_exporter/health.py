@@ -27,8 +27,7 @@ class Stats:
         self.tariff_wastewater_rate_per_m3 = 0.0
         self.tariff_water_standing_charge_per_day = 0.0
         self.tariff_wastewater_standing_charge_per_day = 0.0
-        self.account_current_balance_gbp = 0.0
-        self.account_payment_due_gbp = 0.0
+        self.account_current_balance_gbp: float | None = None
         self.samples_pushed_total = 0
         self.push_errors_total = 0
         self.up = 0
@@ -68,7 +67,6 @@ def update_snapshot_metrics(
         )
     if account is not None:
         STATS.account_current_balance_gbp = account.currentBalance
-        STATS.account_payment_due_gbp = account.paymentDueAmount
 
 
 def format_reading_litres(litres: float) -> str:
@@ -81,6 +79,12 @@ def format_gbp(value: float, *, suffix: str = "") -> str:
     if value <= 0:
         return "unknown"
     return f"GBP {value:,.4f}{suffix}"
+
+
+def format_balance_gbp(value: float | None) -> str:
+    if value is None:
+        return "unknown"
+    return f"GBP {value:,.4f}"
 
 
 def _human_ago(seconds: int) -> str:
@@ -133,8 +137,7 @@ def render_status_page(*, now: datetime.datetime | None = None) -> str:
         f"Water standing charge:     {format_gbp(STATS.tariff_water_standing_charge_per_day, suffix='/day')}",
         f"Wastewater standing:       {format_gbp(STATS.tariff_wastewater_standing_charge_per_day, suffix='/day')}",
         "",
-        f"Account current balance:   {format_gbp(STATS.account_current_balance_gbp)}",
-        f"Account payment due:       {format_gbp(STATS.account_payment_due_gbp)}",
+        f"Account current balance:   {format_balance_gbp(STATS.account_current_balance_gbp)}",
         "",
         f"Samples pushed (since restart): {STATS.samples_pushed_total}",
         f"Push errors (since restart):    {STATS.push_errors_total}",

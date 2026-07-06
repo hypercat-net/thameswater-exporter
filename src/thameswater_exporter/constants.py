@@ -17,4 +17,3 @@ TARIFF_STANDING_CHARGE_WASTEWATER_METRIC = (
 )
 
 ACCOUNT_CURRENT_BALANCE_METRIC = "thameswater_account_current_balance_gbp"
-ACCOUNT_PAYMENT_DUE_METRIC = "thameswater_account_payment_due_gbp"
