@@ -28,6 +28,8 @@ class Stats:
         self.tariff_water_standing_charge_per_day = 0.0
         self.tariff_wastewater_standing_charge_per_day = 0.0
         self.account_current_balance_gbp: float | None = None
+        self.poll_interval_seconds = 0
+        self.next_poll_unixtime = 0.0
         self.samples_pushed_total = 0
         self.push_errors_total = 0
         self.up = 0
@@ -104,6 +106,45 @@ def _human_ago(seconds: int) -> str:
     return f"{days} day{'s' if days != 1 else ''} ago"
 
 
+def _human_in(seconds: int) -> str:
+    if seconds < 60:
+        return f"{seconds} second{'s' if seconds != 1 else ''}"
+    minutes, _ = divmod(seconds, 60)
+    if minutes < 60:
+        return f"{minutes} minute{'s' if minutes != 1 else ''}"
+    hours, minutes = divmod(minutes, 60)
+    if hours < 48:
+        if minutes:
+            return f"{hours} hour{'s' if hours != 1 else ''} {minutes} minute{'s' if minutes != 1 else ''}"
+        return f"{hours} hour{'s' if hours != 1 else ''}"
+    days, hours = divmod(hours, 24)
+    if hours:
+        return f"{days} day{'s' if days != 1 else ''} {hours} hour{'s' if hours != 1 else ''}"
+    return f"{days} day{'s' if days != 1 else ''}"
+
+
+def format_future_unixtime(
+    unixtime: float,
+    *,
+    now: datetime.datetime | None = None,
+) -> str:
+    if unixtime <= 0:
+        return "unknown"
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    dt = datetime.datetime.fromtimestamp(unixtime, tz=datetime.timezone.utc)
+    stamp = dt.strftime("%Y-%m-%d %H:%M:%S")
+    remaining = int(unixtime - now.timestamp())
+    if remaining <= 0:
+        return f"{stamp} UTC (now)"
+    return f"{stamp} UTC (in {_human_in(remaining)})"
+
+
+def format_next_poll(*, now: datetime.datetime | None = None) -> str:
+    if STATS.last_run_unixtime > STATS.last_success_unixtime:
+        return "in progress"
+    return format_future_unixtime(STATS.next_poll_unixtime, now=now)
+
+
 def format_unixtime(
     unixtime: float,
     *,
@@ -127,6 +168,7 @@ def render_status_page(*, now: datetime.datetime | None = None) -> str:
         "",
         f"Last collection cycle:     {format_unixtime(STATS.last_success_unixtime, now=now)}",
         f"Last collection attempt:   {format_unixtime(STATS.last_run_unixtime, now=now)}",
+        f"Next poll:                 {format_next_poll(now=now)}",
         f"Last new data push:        {format_unixtime(STATS.last_new_data_push_unixtime, now=now)}",
         f"Newest reading hour:       {format_unixtime(STATS.last_pushed_hour_unixtime, now=now)}",
         f"Last published reading:    {format_reading_litres(STATS.last_pushed_reading_litres)}",

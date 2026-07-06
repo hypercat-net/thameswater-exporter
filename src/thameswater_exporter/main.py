@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import signal
 import threading
+import time
 
 from prometheus_remote_writer import RemoteWriter
 
@@ -62,6 +63,9 @@ def main() -> None:
         cfg.backfill_days,
     )
 
+    STATS.poll_interval_seconds = cfg.poll_interval
+    STATS.next_poll_unixtime = time.time()
+
     while not _STOP.is_set():
         try:
             collect_once(cfg, writer, _STOP)
@@ -71,6 +75,7 @@ def main() -> None:
             STATS.push_errors_total += 1
             log.exception("Collection cycle failed; will retry next interval")
 
+        STATS.next_poll_unixtime = time.time() + cfg.poll_interval
         _STOP.wait(cfg.poll_interval)
 
     log.info("Exporter stopped")

@@ -5,7 +5,9 @@ from thameswaterapi import Account, Tariff
 from thameswater_exporter.health import (
     STATS,
     format_balance_gbp,
+    format_future_unixtime,
     format_gbp,
+    format_next_poll,
     format_reading_litres,
     format_unixtime,
     render_self_metrics,
@@ -65,6 +67,19 @@ def test_format_balance_gbp_allows_zero_and_negative():
     assert format_balance_gbp(-15.5) == "GBP -15.5000"
 
 
+def test_format_future_unixtime_includes_in_suffix():
+    ts = FIXED_NOW.timestamp() + 3600
+    text = format_future_unixtime(ts, now=FIXED_NOW)
+    assert text == "2026-07-05 13:00:00 UTC (in 1 hour)"
+
+
+def test_format_next_poll_in_progress():
+    STATS.last_success_unixtime = FIXED_NOW.timestamp() - 300
+    STATS.last_run_unixtime = FIXED_NOW.timestamp() - 60
+    STATS.next_poll_unixtime = FIXED_NOW.timestamp() + 3600
+    assert format_next_poll(now=FIXED_NOW) == "in progress"
+
+
 def test_format_unixtime_never_for_zero():
     assert format_unixtime(0) == "never"
 
@@ -77,8 +92,8 @@ def test_format_unixtime_includes_datetime_and_ago():
 
 def test_render_status_page_is_human_readable():
     STATS.up = 1
-    STATS.last_success_unixtime = FIXED_NOW.timestamp() - 120
-    STATS.last_run_unixtime = FIXED_NOW.timestamp() - 60
+    STATS.last_success_unixtime = FIXED_NOW.timestamp() - 60
+    STATS.last_run_unixtime = FIXED_NOW.timestamp() - 120
     STATS.last_new_data_push_unixtime = FIXED_NOW.timestamp() - 7200
     STATS.last_pushed_hour_unixtime = datetime.datetime(
         2026, 7, 4, 22, 0, tzinfo=datetime.timezone.utc
@@ -99,11 +114,13 @@ def test_render_status_page_is_human_readable():
     )
     STATS.samples_pushed_total = 42
     STATS.push_errors_total = 1
+    STATS.next_poll_unixtime = FIXED_NOW.timestamp() + 3600
 
     page = render_status_page(now=FIXED_NOW)
     assert "Status: OK" in page
-    assert "Last collection cycle:     2026-07-05 11:58:00 UTC (2 minutes ago)" in page
-    assert "Last collection attempt:   2026-07-05 11:59:00 UTC (1 minute ago)" in page
+    assert "Last collection cycle:     2026-07-05 11:59:00 UTC (1 minute ago)" in page
+    assert "Last collection attempt:   2026-07-05 11:58:00 UTC (2 minutes ago)" in page
+    assert "Next poll:                 2026-07-05 13:00:00 UTC (in 1 hour)" in page
     assert "Last new data push:        2026-07-05 10:00:00 UTC (2 hours ago)" in page
     assert "Newest reading hour:       2026-07-04 22:00:00 UTC (14 hours ago)" in page
     assert "Last published reading:    1,046 L (1.046 m³)" in page
