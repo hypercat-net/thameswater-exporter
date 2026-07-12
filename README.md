@@ -154,7 +154,7 @@ to an existing Mimir instance.**
 
 ```bash
 cp .env.example .env      # fill in THAMESWATER_* credentials
-docker compose up --build
+docker compose up -d
 ```
 
 Then:
@@ -193,8 +193,8 @@ Run only the exporter container and push readings straight to Mimir's distributo
    restarts):
 
    ```bash
-   docker compose up --build exporter
-   # or: docker run -d --env-file .env -v thameswater-state:/data -p 9100:9100 hypercat42/thameswater-exporter:1.4.2
+   docker compose up -d exporter
+   # or: docker run -d --env-file .env -v thameswater-state:/data -p 9100:9100 hypercat42/thameswater-exporter:latest
    ```
 
 3. **Adjust Mimir limits** for your tenant — see [Mimir limits for historical

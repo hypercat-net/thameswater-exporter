@@ -1,6 +1,6 @@
 services:
   exporter:
-    build: .
+    image: hypercat42/thameswater-exporter:latest
     container_name: thameswater-exporter
     restart: unless-stopped
     env_file: .env
