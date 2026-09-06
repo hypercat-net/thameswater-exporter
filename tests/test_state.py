@@ -15,6 +15,7 @@ CACHED_TARIFF = Tariff(
     wastewater_rate_per_m3=2.2,
     water_fixed_per_year=110.0,
     wastewater_fixed_per_year=220.0,
+    effective_date=datetime.date(2026, 4, 1),
 )
 
 
