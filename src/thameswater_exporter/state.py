@@ -83,11 +83,21 @@ def load_cached_tariff(state_file: str) -> Tariff | None:
     if not raw:
         return None
     try:
+        effective_date_raw = raw.get("effective_date")
+        if effective_date_raw:
+            effective_date = datetime.date.fromisoformat(str(effective_date_raw))
+        elif raw.get("cached_at"):
+            effective_date = datetime.datetime.fromisoformat(
+                str(raw["cached_at"])
+            ).date()
+        else:
+            effective_date = datetime.date.today()
         return Tariff(
             clean_water_rate_per_m3=float(raw["clean_water_rate_per_m3"]),
             wastewater_rate_per_m3=float(raw["wastewater_rate_per_m3"]),
             water_fixed_per_year=float(raw["water_fixed_per_year"]),
             wastewater_fixed_per_year=float(raw["wastewater_fixed_per_year"]),
+            effective_date=effective_date,
         )
     except (KeyError, TypeError, ValueError) as exc:
         log.warning("Ignoring invalid cached tariff in %s: %s", state_file, exc)
@@ -101,6 +111,7 @@ def save_cached_tariff(state_file: str, tariff: Tariff) -> None:
         "wastewater_rate_per_m3": tariff.wastewater_rate_per_m3,
         "water_fixed_per_year": tariff.water_fixed_per_year,
         "wastewater_fixed_per_year": tariff.wastewater_fixed_per_year,
+        "effective_date": tariff.effective_date.isoformat(),
         "cached_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
     }
     _write_state_file(state_file, state)

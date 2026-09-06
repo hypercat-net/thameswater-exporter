@@ -1,3 +1,5 @@
+import datetime
+
 from thameswaterapi import Account, Tariff
 
 from thameswater_exporter.constants import (
@@ -33,6 +35,7 @@ TARIFF = Tariff(
     wastewater_rate_per_m3=2.0,
     water_fixed_per_year=365.0,
     wastewater_fixed_per_year=730.0,
+    effective_date=datetime.date(2026, 4, 1),
 )
 ACCOUNT = Account(
     contractAccountNumber="900024395406",

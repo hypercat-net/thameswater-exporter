@@ -105,6 +105,7 @@ def test_render_status_page_is_human_readable():
             wastewater_rate_per_m3=2.0,
             water_fixed_per_year=365.0,
             wastewater_fixed_per_year=730.0,
+            effective_date=datetime.date(2026, 4, 1),
         ),
         account=Account(
             contractAccountNumber="900024395406",
